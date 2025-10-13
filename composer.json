@@ -27,7 +27,7 @@
     "require-dev": {
         "phpstan/phpstan": "^2.0",
         "symfony/ux-twig-component": "^2.8",
-        "doctrine/doctrine-bundle": "^2.7",
+        "doctrine/doctrine-bundle": "^2.7|^3.0",
         "stevenmaguire/oauth2-dropbox": "^3.1"
     },
     "autoload": {
