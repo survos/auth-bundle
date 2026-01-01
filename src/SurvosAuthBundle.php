@@ -79,7 +79,7 @@ class SurvosAuthBundle extends AbstractBundle
             ->setArgument('$router', new Reference('router'))
             ->setArgument('$userClass', $config['user_class'])
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$entityManager', new Reference('doctrine.orm.entity_manager'))
+//            ->setArgument('$entityManager', new Reference('doctrine.orm.entity_manager'))
 //            ->setArgument('$userProvider', new Reference('doctrine.orm.security.user.provider'))
             ->setArgument('$clientRegistry', new Reference('knpu.oauth2.registry'))
             ->addTag('container.service_subscriber')

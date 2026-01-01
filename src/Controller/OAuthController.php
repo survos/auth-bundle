@@ -31,7 +31,7 @@ use Twig\Environment;
 
 class OAuthController extends AbstractController
 {
-//    private ?UserProviderInterface  $userProvider = null;
+    private ?EntityManagerInterface $entityManager=null;
 
     public function __construct(
         private AuthService $baseService,
@@ -40,12 +40,16 @@ class OAuthController extends AbstractController
         private ClientRegistry $clientRegistry,
         private UserProviderInterface $userProvider,
         private UserAuthenticatorInterface $userAuthenticator,
-        private EntityManagerInterface $entityManager,
+//        private EntityManagerInterface $entityManager,
 //        private AuthenticatorManagerInterface $authenticatorManager,
         private string $userClass,
         private ?LoggerInterface $logger=null
     ) {
-        $this->entityManager = $this->registry->getManagerForClass($this->userClass);
+        try {
+            $this->entityManager = $this->registry->getManagerForClass($this->userClass);
+        } catch (\Exception $e) {
+            throw new \Exception("No entity manager for $this->userClass");
+        }
         //        $this->clientRegistry = $this->baseService->getClientRegistry();
     }
 
