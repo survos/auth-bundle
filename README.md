@@ -6,6 +6,82 @@ Symfony Bundle that provides some utilities when working with Symfony authentica
 composer req survos/auth-bundle
 ```
 
+## Adding Social Login (OAuth2)
+
+### 1. Configure the OAuth clients
+
+Create `config/packages/knpu_oauth2_client.yaml`:
+
+```yaml
+knpu_oauth2_client:
+    clients:
+        github:
+            type: github
+            client_id: '%env(OAUTH_GITHUB_CLIENT_ID)%'
+            client_secret: '%env(OAUTH_GITHUB_CLIENT_SECRET)%'
+            redirect_route: auth_oauth_check
+            redirect_params: { service: github }
+        google:
+            type: google
+            client_id: '%env(OAUTH_GOOGLE_CLIENT_ID)%'
+            client_secret: '%env(OAUTH_GOOGLE_CLIENT_SECRET)%'
+            redirect_route: auth_oauth_check
+            redirect_params: { service: google }
+```
+
+Add credentials to `.env.local`:
+
+```bash
+OAUTH_GITHUB_CLIENT_ID=your_client_id
+OAUTH_GITHUB_CLIENT_SECRET=your_client_secret
+OAUTH_GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+OAUTH_GOOGLE_CLIENT_SECRET=your_client_secret
+```
+
+### 2. Update your User entity
+
+Implement `OAuthIdentifiersInterface` and use `OAuthIdentifiersTrait`:
+
+```php
+<?php
+
+namespace App\Entity;
+
+use App\Repository\UserRepository;
+use Doctrine\ORM\Mapping as ORM;
+use Survos\AuthBundle\Traits\OAuthIdentifiersInterface;
+use Survos\AuthBundle\Traits\OAuthIdentifiersTrait;
+use Symfony\Component\Security\Core\User\UserInterface;
+
+#[ORM\Entity(repositoryClass: UserRepository::class)]
+class User implements UserInterface, OAuthIdentifiersInterface
+{
+    use OAuthIdentifiersTrait;
+    
+    // ... other properties and methods
+}
+```
+
+### 3. Run migration
+
+```bash
+bin/console make:migration
+bin/console doctrine:migrations:migrate
+```
+
+### 4. Add login links
+
+```twig
+<a href="{{ path('oauth_connect_start', {clientKey: 'github'}) }}">Login with GitHub</a>
+<a href="{{ path('oauth_connect_start', {clientKey: 'google'}) }}">Login with Google</a>
+```
+
+### 5. Configure callback URLs
+
+Add redirect URIs in your OAuth provider's console:
+- GitHub: `https://yourdomain.com/oauth/check/github`
+- Google: `https://yourdomain.com/oauth/check/google`
+
 wget -O - https://raw.githubusercontent.com/<username>/<project>/<branch>/<path>/<file> | bash
 
 ```bash
