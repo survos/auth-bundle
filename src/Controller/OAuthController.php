@@ -5,6 +5,7 @@ namespace Survos\AuthBundle\Controller;
 # use App\Security\AppAuthenticator;
 use Doctrine\Bundle\DoctrineBundle\Registry;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use KnpU\OAuth2ClientBundle\Client\ClientRegistry;
 use KnpU\OAuth2ClientBundle\Client\OAuth2ClientInterface;
 use KnpU\OAuth2ClientBundle\Client\Provider\DropboxClient;
@@ -35,7 +36,7 @@ class OAuthController extends AbstractController
 
     public function __construct(
         private AuthService $baseService,
-        private Registry $registry,
+        private ManagerRegistry $registry,
         private RouterInterface $router,
         private ClientRegistry $clientRegistry,
         private UserProviderInterface $userProvider,

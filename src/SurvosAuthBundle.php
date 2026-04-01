@@ -84,11 +84,12 @@ class SurvosAuthBundle extends AbstractBundle
 
         $definition = $builder->autowire(OAuthController::class)
             ->setAutowired(true)
-            ->setAutoconfigured(false) // avoid setContainer() injection
-            ->setArgument('$authService', new Reference($serviceId))
+            ->setAutoconfigured(true) // avoid setContainer() injection
+//            ->setArgument('$authService', new Reference($serviceId))
             ->setArgument('$clientRegistry', new Reference('knpu.oauth2.registry'))
-            ->setArgument('$userAuthenticator', new Reference('security.user_authenticator'))
-            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+//            ->setArgument('$userAuthenticator', new Reference('security.user_authenticator'))
+//            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+                ->setArgument('$userClass', $config['user_class'])
             ->setPublic(true);
 
         foreach ([LoginController::class, RegisterController::class, ProfileController::class] as $controllerClass) {
