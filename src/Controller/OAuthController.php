@@ -13,7 +13,7 @@ use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Provider\ResourceOwnerInterface;
 use Psr\Log\LoggerInterface;
 use Stevenmaguire\OAuth2\Client\Provider\DropboxResourceOwner;
-use Survos\AuthBundle\Services\AuthService;
+use Survos\AuthBundle\Service\AuthService;
 use Survos\AuthBundle\Traits\OAuthIdentifiersInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -73,7 +73,7 @@ class OAuthController extends AbstractController
     {
         return $this->render('@SurvosAuth/oauth/profile.html.twig', [
             'user' => $this->getUser()
-            ]);
+        ]);
     }
 
     #[Route("/provider/{providerKey}", name: "oauth_provider", methods: [Request::METHOD_GET])]
@@ -155,8 +155,8 @@ class OAuthController extends AbstractController
                 ],
                 'facebook' => ['email', 'public_profile'],
 //                'dropbox' => ['account_info.read', 'files.content.read'],
-                'google' => ['email', 'profile', 'openid'],
-            ];
+            'google' => ['email', 'profile', 'openid'],
+        ];
         ;
 
         $client = $this->clientRegistry->getClient($clientKey); // key used in config/packages/knpu_oauth2_client.yaml
@@ -190,48 +190,48 @@ class OAuthController extends AbstractController
 
         $provider = $client->getOAuth2Provider();
         if (false)
-        if ($clientKey == 'dropbox') {
-            if (!$code = $request->get('code')) {
-                $authUrl = $provider->getAuthorizationUrl();
-                $redirect = $client->redirect($scopes[$clientKey] ?? [], ['state' => $provider->getState()]);
-                //        dump($redirect->getTargetUrl());
-                $redirect->setTargetUrl(str_replace('http%3A', 'https%3A', $redirect->getTargetUrl()));
-                return $redirect;
+            if ($clientKey == 'dropbox') {
+                if (!$code = $request->get('code')) {
+                    $authUrl = $provider->getAuthorizationUrl();
+                    $redirect = $client->redirect($scopes[$clientKey] ?? [], ['state' => $provider->getState()]);
+                    //        dump($redirect->getTargetUrl());
+                    $redirect->setTargetUrl(str_replace('http%3A', 'https%3A', $redirect->getTargetUrl()));
+                    return $redirect;
 
-                $_SESSION['oauth2state'] = $provider->getState();
+                    $_SESSION['oauth2state'] = $provider->getState();
 
-                header('Location: '.$authUrl);
-                exit;
-            }
-            $state = $request->get('state');
-            dd($state, $_SESSION);
-            if (empty($_GET['state']) || ($_GET['state'] !== $_SESSION['oauth2state'])) {
-
-                unset($_SESSION['oauth2state']);
-                exit('Invalid state');
-
-            } else {
-
-                // Try to get an access token (using the authorization code grant)
-                $token = $provider->getAccessToken('authorization_code', [
-                    'code' => $_GET['code']
-                ]);
-
-                // Optional: Now you have a token you can look up a users profile data
-                try {
-
-                    // We got an access token, let's now get the user's details
-                    $user = $provider->getResourceOwner($token);
-
-                    // Use these details to create a new profile
-                    printf('Hello %s!', $user->getId());
-
-                } catch (Exception $e) {
-
-                    // Failed to get user details
-                    exit('Oh dear...');
+                    header('Location: '.$authUrl);
+                    exit;
                 }
-            }
+                $state = $request->get('state');
+                dd($state, $_SESSION);
+                if (empty($_GET['state']) || ($_GET['state'] !== $_SESSION['oauth2state'])) {
+
+                    unset($_SESSION['oauth2state']);
+                    exit('Invalid state');
+
+                } else {
+
+                    // Try to get an access token (using the authorization code grant)
+                    $token = $provider->getAccessToken('authorization_code', [
+                        'code' => $_GET['code']
+                    ]);
+
+                    // Optional: Now you have a token you can look up a users profile data
+                    try {
+
+                        // We got an access token, let's now get the user's details
+                        $user = $provider->getResourceOwner($token);
+
+                        // Use these details to create a new profile
+                        printf('Hello %s!', $user->getId());
+
+                    } catch (Exception $e) {
+
+                        // Failed to get user details
+                        exit('Oh dear...');
+                    }
+                }
 
 
             }
@@ -280,15 +280,15 @@ class OAuthController extends AbstractController
 
         try {
 
-        $data = $oAuthUser->toArray();
-        $email = method_exists($oAuthUser, 'getEmail')
-            ? $oAuthUser->getEmail()
-            : $data['email']??null;
-        if (!$email) {
-            // during dev
-            $this->logger->error("No email for $clientKey");
+            $data = $oAuthUser->toArray();
+            $email = method_exists($oAuthUser, 'getEmail')
+                ? $oAuthUser->getEmail()
+                : $data['email']??null;
+            if (!$email) {
+                // during dev
+                $this->logger->error("No email for $clientKey");
 //            dd($data, $oAuthUser, $identifier, $token);
-        }
+            }
         } catch (\Exception $e) {
             $this->addFlash('error', $e->getMessage());
             foreach ($request->query->all() as $var => $value) {
@@ -349,12 +349,12 @@ class OAuthController extends AbstractController
             $user = (new User())
                 ->setEmail($email);
             if (false) // auto-create the user, then redirect to profile, including setting a password
-            $user->setPassword(
-                $userPasswordHasher->hashPassword(
-                    $user,
-                    $form->get('plainPassword')->getData()
-                )
-            );
+                $user->setPassword(
+                    $userPasswordHasher->hashPassword(
+                        $user,
+                        $form->get('plainPassword')->getData()
+                    )
+                );
 
             $this->entityManager->persist($user);
             $this->entityManager->flush();

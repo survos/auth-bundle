@@ -1,0 +1,9 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+    <div class="container py-5">
+        <h1 class="mb-4">{{ ux_icon('add_user', {class: 'me-2'}) }} Register</h1>
+
+        <auth:register />
+    </div>
+{% endblock %}

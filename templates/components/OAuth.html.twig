@@ -2,17 +2,25 @@
 
 
     {% if app.environment == 'dev' %}
-        <a class="btn btn-warning" href="{{ path('oauth_providers') }}"><i class="fas fa-cogs"></i> Configure OAuth</a>
+        <a class="btn btn-warning" href="{{ path('oauth_providers') }}">Configure OAuth</a>
     {% endif %}
     <hr />
 
     {% for clientKey in this.clientKeys %}
-        <button class="{{ this.buttonClass }}">
-            <a
-               href="{{ path('oauth_connect_start', {clientKey: clientKey}) }}">
-                <i class="{{ this.iconPrefix}}{{clientKey}}"></i>{{ clientKey|title }}</a>
-        </button>
+        <a
+            class="{{ this.buttonClass }}"
+            href="{{ path('auth_oauth_connect', {provider: clientKey}) }}"
+        >
+            {{ ux_icon(clientKey, { class: 'me-1' }) }}
+            Continue with {{ clientKey|title }}
+        </a>
     {% endfor %}
+
+    {% if this.missingProviders %}
+        <div class="mt-3 text-muted small">
+            Missing providers: {{ this.missingProviders|join(', ') }}
+        </div>
+    {% endif %}
 
     {#
     <div class="login-social-set text-center">

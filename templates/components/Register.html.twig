@@ -1,0 +1,21 @@
+<div {{ attributes }} class="auth-register">
+    <h2>Create Account</h2>
+
+    <div class="mb-3 text-muted">
+        Register using a social account
+    </div>
+
+    <auth:OAuth />
+
+    {# future: customizable fields #}
+    {% if this.extraFields is not empty %}
+        <div class="mt-4">
+            {% for field in this.extraFields %}
+                <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    <input class="form-control" name="{{ field.name }}" />
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>

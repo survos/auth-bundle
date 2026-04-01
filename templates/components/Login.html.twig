@@ -1,0 +1,18 @@
+<div {{ attributes }} class="auth-login">
+    <h2>Login</h2>
+
+    {# placeholder for future email/password form #}
+    <div class="mb-3 text-muted">Use a social provider to continue</div>
+
+    <div class="mb-3">
+        <a class="btn btn-warning" href="{{ path('oauth_providers') }}">
+            {{ ux_icon('settings', {class: 'me-1'}) }} Configure Providers
+        </a>
+    </div>
+
+    {% if this.showOauth %}
+        <div class="auth-oauth">
+            <auth:OAuth />
+        </div>
+    {% endif %}
+</div>

@@ -1,146 +1,92 @@
-# AuthBundle
+# Survos Auth Bundle
 
-Symfony Bundle that provides some utilities when working with Symfony authentication.
+Symfony bundle for OAuth login and provider-driven onboarding UX.
 
 ```bash
 composer req survos/auth-bundle
 ```
 
-## Adding Social Login (OAuth2)
+## Configuration Model
 
-### 1. Configure the OAuth clients
+Use `survos_auth` as the canonical config. The bundle prepends `knpu_oauth2_client` client config automatically.
 
-Create `config/packages/knpu_oauth2_client.yaml`:
+### 1) Configure providers
+
+`config/packages/survos_auth.yaml`:
+
+```yaml
+survos_auth:
+    production_url_base: '%env(PRODUCTION_URL)%'
+    providers:
+        github:
+            client_id: '%env(OAUTH_GITHUB_CLIENT_ID)%'
+            client_secret: '%env(OAUTH_GITHUB_CLIENT_SECRET)%'
+            scopes: ['user:email', 'read:user']
+        google:
+            client_id: '%env(OAUTH_GOOGLE_CLIENT_ID)%'
+            client_secret: '%env(OAUTH_GOOGLE_CLIENT_SECRET)%'
+            scopes: ['email', 'profile', 'openid']
+```
+
+Optional per-provider keys supported:
+
+- `type`
+- `redirect_route`
+- `redirect_params`
+- `use_state`
+
+Global optional key:
+
+- `production_url_base` (used by provider setup pages to render production callback URLs)
+
+`scopes` are used by your app at redirect time and are not forwarded into KnpU config.
+
+### 2) Add env vars
+
+```bash
+OAUTH_GITHUB_CLIENT_ID=
+OAUTH_GITHUB_CLIENT_SECRET=
+OAUTH_GOOGLE_CLIENT_ID=
+OAUTH_GOOGLE_CLIENT_SECRET=
+```
+
+### 3) Keep knpu config minimal
+
+`config/packages/knpu_oauth2_client.yaml`:
 
 ```yaml
 knpu_oauth2_client:
-    clients:
-        github:
-            type: github
-            client_id: '%env(OAUTH_GITHUB_CLIENT_ID)%'
-            client_secret: '%env(OAUTH_GITHUB_CLIENT_SECRET)%'
-            redirect_route: auth_oauth_check
-            redirect_params: { service: github }
-        google:
-            type: google
-            client_id: '%env(OAUTH_GOOGLE_CLIENT_ID)%'
-            client_secret: '%env(OAUTH_GOOGLE_CLIENT_SECRET)%'
-            redirect_route: auth_oauth_check
-            redirect_params: { service: google }
+    clients: { }
 ```
 
-Add credentials to `.env.local`:
+## User Entity
 
-```bash
-OAUTH_GITHUB_CLIENT_ID=your_client_id
-OAUTH_GITHUB_CLIENT_SECRET=your_client_secret
-OAUTH_GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
-OAUTH_GOOGLE_CLIENT_SECRET=your_client_secret
-```
-
-### 2. Update your User entity
-
-Implement `OAuthIdentifiersInterface` and use `OAuthIdentifiersTrait`:
+Implement `OAuthIdentifiersInterface` and use `OAuthIdentifiersTrait`.
 
 ```php
-<?php
-
-namespace App\Entity;
-
-use App\Repository\UserRepository;
-use Doctrine\ORM\Mapping as ORM;
 use Survos\AuthBundle\Traits\OAuthIdentifiersInterface;
 use Survos\AuthBundle\Traits\OAuthIdentifiersTrait;
-use Symfony\Component\Security\Core\User\UserInterface;
 
-#[ORM\Entity(repositoryClass: UserRepository::class)]
-class User implements UserInterface, OAuthIdentifiersInterface
+class User implements OAuthIdentifiersInterface
 {
     use OAuthIdentifiersTrait;
-    
-    // ... other properties and methods
 }
 ```
 
-### 3. Run migration
+## Useful Routes
 
-```bash
-bin/console make:migration
-bin/console doctrine:migrations:migrate
-```
+- `/oauth/connect/{provider}`
+- `/oauth/check/{provider}`
+- `/oauth/providers`
+- `/oauth/provider/{providerKey}`
 
-### 4. Add login links
+## UI
+
+Twig components are available and should be rendered with `twig:` tags.
 
 ```twig
-<a href="{{ path('oauth_connect_start', {clientKey: 'github'}) }}">Login with GitHub</a>
-<a href="{{ path('oauth_connect_start', {clientKey: 'google'}) }}">Login with Google</a>
+<twig:OAuth />
+<twig:auth_login />
+<twig:auth_register />
+<twig:auth_profile />
 ```
-
-### 5. Configure callback URLs
-
-Add redirect URIs in your OAuth provider's console:
-- GitHub: `https://yourdomain.com/oauth/check/github`
-- Google: `https://yourdomain.com/oauth/check/google`
-
-wget -O - https://raw.githubusercontent.com/<username>/<project>/<branch>/<path>/<file> | bash
-
-```bash
-ciine rec auth-demo.cast 
-symfony new auth-demo --webapp --version=next && cd auth-demo
-echo "DATABASE_URL=sqlite:///%kernel.project_dir%/var/data.db" > .env.local
-
-# this is just Symfony
-composer config extra.symfony.allow-contrib true
-composer require symfonycasts/verify-email-bundle
-sed -i "s|# MAILER_DSN|MAILER_DSN|" .env
-bin/console make:user --is-entity --identity-property-name=email --with-password User -n
-echo ",,," | sed "s/,/\n/g"  | bin/console make:security:form-login
-
-bin/console make:controller AppController
-sed -i "s|/app|/|" src/Controller/AppController.php 
-
-echo ",,no,admin@test.com,AuthDemoBot,yes,app_homepage,no" | sed "s/,/\n/g"  | bin/console make:registration-form
-bin/console doctrine:schema:update --force
-symfony server:start -d
-
-echo "import '@picocss/pico';\n" >> assets/app.js
-echo "import '@picocss/pico/css/pico.min.css';\n" >> assets/app.js
-
-
-cat > templates/app/index.html.twig <<END
-{% extends 'base.html.twig' %}
-{% block body %}
-    <div>
-        <a href="{{ path('app_app') }}">Home</a>
-    </div>
-
-    {% if is_granted('IS_AUTHENTICATED_FULLY') %}
-        <a class="btn btn-primary" href="{{ path('app_logout') }}">Logout {{ app.user.email }} </a>
-    {% else %}
-        <a class="btn btn-primary" href="{{ path('app_register') }}">Register</a>
-        <a class="btn btn-secondary" href="{{ path('app_login') }}">Login</a>
-    {% endif %}
-{% endblock %}
-END
-symfony open:local
-
-# add survos/auth-bundle to create users from the CLI
-composer config allow-plugins.endroid/installer true
-composer req survos/auth-bundle
-bin/console survos:user:create admin@test.com password --roles ROLE_ADMIN
-bin/console survos:user:create bob@test.com password
-bin/console survos:user:create carol@test.com password
-symfony server:start -d
-symfony open:local --path=/login
-
-
-```
-
-## Deprecated
-
-```bash
-sed  -i "s|some_route|app_app|" src/Security/AppAuthenticator.php
-sed  -i "s|// return new|return new|" src/Security/AppAuthenticator.php
-sed  -i "s|throw new|//throw new|" src/Security/AppAuthenticator.php
-```
-

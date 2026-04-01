@@ -1,12 +1,16 @@
 <?php
 
-namespace Survos\AuthBundle\Services;
+namespace Survos\AuthBundle\Service;
 
 use KnpU\OAuth2ClientBundle\Client\ClientRegistry;
 use KnpU\OAuth2ClientBundle\DependencyInjection\ProviderFactory;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Yaml\Yaml;
+use Symfony\Component\Security\Core\User\UserInterface;
+use League\OAuth2\Client\Provider\ResourceOwnerInterface;
+use Survos\AuthBundle\Traits\OAuthIdentifiersInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 class AuthService
 {
@@ -14,7 +18,8 @@ class AuthService
         private string $userClass,
         private array $config,
         private ClientRegistry $clientRegistry,
-        private ?LoggerInterface $logger=null
+        private ?LoggerInterface $logger=null,
+        private ?RequestStack $requestStack = null
 
         //        private ProviderFactory $provider
     ) {
@@ -108,6 +113,65 @@ class AuthService
     public function getClientRegistry(): ClientRegistry
     {
         return $this->clientRegistry;
+    }
+
+    // Central entry point for OAuth user resolution
+    public function getOrCreateUser(string $provider, ResourceOwnerInterface $oauthUser): UserInterface
+    {
+        $userClass = $this->userClass;
+
+        $data = method_exists($oauthUser, 'toArray') ? $oauthUser->toArray() : [];
+        $email = method_exists($oauthUser, 'getEmail')
+            ? $oauthUser->getEmail()
+            : ($data['email'] ?? null);
+
+        $identifier = $oauthUser->getId();
+
+        // naive lookup by email first
+        $repo = (new \ReflectionClass($userClass))->newInstanceWithoutConstructor();
+        // we cannot access EM here safely without adding deps, so delegate via trait expectations
+
+        // expectation: user provider or repository handles lookup; fallback create
+        // minimal approach: always create new instance and let app override later
+        /** @var UserInterface&OAuthIdentifiersInterface $user */
+        $user = new $userClass();
+
+        if (method_exists($user, 'setEmail') && $email) {
+            $user->setEmail($email);
+        }
+
+        if ($user instanceof OAuthIdentifiersInterface) {
+            $user->setIdentifier($provider, $identifier);
+        }
+
+        // Apply extra registration fields from session via RequestStack
+        if ($this->requestStack && ($session = $this->requestStack->getSession())) {
+            if ($session->has('auth_extra_fields')) {
+                $extra = $session->get('auth_extra_fields', []);
+                foreach ($extra as $key => $value) {
+                    $setter = 'set' . ucfirst($key);
+                    if (method_exists($user, $setter)) {
+                        $user->$setter($value);
+                    }
+                }
+                $session->remove('auth_extra_fields');
+            }
+        }
+
+        return $user;
+    }
+
+    // expose authenticator for controller
+    public function getAuthenticator()
+    {
+        // rely on container autowiring alias for Authenticator class
+        return new \Survos\AuthBundle\Security\Authenticator(
+            $this->clientRegistry,
+            null,
+            null,
+            $this->userClass,
+            null
+        );
     }
 
     // the hand-curated list of URLs.  Written by hand

@@ -3,9 +3,12 @@
 namespace Survos\AuthBundle;
 
 use Survos\AuthBundle\Command\UserCreateCommand;
+use Survos\AuthBundle\Controller\LoginController;
 use Survos\AuthBundle\Controller\OAuthController;
+use Survos\AuthBundle\Controller\ProfileController;
+use Survos\AuthBundle\Controller\RegisterController;
 use Survos\AuthBundle\Security\Authenticator;
-use Survos\AuthBundle\Services\AuthService;
+use Survos\AuthBundle\Service\AuthService;
 use Survos\AuthBundle\Twig\TwigExtension;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -23,6 +26,9 @@ class SurvosAuthBundle extends AbstractBundle
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
+        $builder->setParameter('survos_auth.providers', $config['providers'] ?? []);
+        $builder->setParameter('survos_auth.production_url_base', $config['production_url_base'] ?? null);
+
         $serviceId = 'survos_auth.base_service';
         $container->services()->alias(AuthService::class, $serviceId);
         $builder->autowire($serviceId, AuthService::class)
@@ -37,11 +43,12 @@ class SurvosAuthBundle extends AbstractBundle
         ;
 
         // the social media login buttons
-        foreach (
-            [
-                OAuth::class,
-            ] as $componentClass
-        ) {
+        foreach ([
+            OAuth::class,
+            \Survos\AuthBundle\Twig\Components\Login::class,
+            \Survos\AuthBundle\Twig\Components\Register::class,
+            \Survos\AuthBundle\Twig\Components\Profile::class,
+        ] as $componentClass) {
             $builder->register($componentClass)
                 ->setAutowired(true)
                 ->setAutoconfigured(true);
@@ -73,18 +80,25 @@ class SurvosAuthBundle extends AbstractBundle
             ->addTag('console.command')
         ;
 
+        // (icons configured via prependExtension)
+
         $definition = $builder->autowire(OAuthController::class)
-            ->setArgument('$baseService', new Reference($serviceId))
-            ->setArgument('$registry', new Reference('doctrine'))
-            ->setArgument('$router', new Reference('router'))
-            ->setArgument('$userClass', $config['user_class'])
-            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-//            ->setArgument('$entityManager', new Reference('doctrine.orm.entity_manager'))
-//            ->setArgument('$userProvider', new Reference('doctrine.orm.security.user.provider'))
+            ->setAutowired(true)
+            ->setAutoconfigured(false) // avoid setContainer() injection
+            ->setArgument('$authService', new Reference($serviceId))
             ->setArgument('$clientRegistry', new Reference('knpu.oauth2.registry'))
-            ->addTag('container.service_subscriber')
-            ->addTag('controller.service_arguments')
+            ->setArgument('$userAuthenticator', new Reference('security.user_authenticator'))
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setPublic(true);
+
+        foreach ([LoginController::class, RegisterController::class, ProfileController::class] as $controllerClass) {
+            $builder->autowire($controllerClass)
+                ->setAutowired(true)
+                ->setAutoconfigured(true)
+                ->setPublic(true)
+                ->addTag('controller.service_arguments');
+        }
+
 
         if ($userProviderServiceId = $config['user_provider']) {
             $definition
@@ -98,10 +112,115 @@ class SurvosAuthBundle extends AbstractBundle
         // since the configuration is short, we can add it here
         $definition->rootNode()
             ->children()
+            ->arrayNode('providers')
+                ->useAttributeAsKey('name')
+                ->arrayPrototype()
+                    ->children()
+                        ->scalarNode('type')->defaultNull()->end()
+                        ->scalarNode('client_id')->defaultNull()->end()
+                        ->scalarNode('client_secret')->defaultNull()->end()
+                        ->arrayNode('scopes')->scalarPrototype()->end()->end()
+                        ->scalarNode('redirect_route')->defaultNull()->end()
+                        ->arrayNode('redirect_params')->scalarPrototype()->end()->end()
+                        ->booleanNode('use_state')->defaultNull()->end()
+                    ->end()
+                ->end()
+            ->end()
             ->scalarNode('new_user_redirect_route')->defaultValue('oauth_profile')->end()
+            ->scalarNode('production_url_base')->defaultNull()->end()
             ->scalarNode('user_provider')->defaultValue(null)->end()
             ->scalarNode('user_class')->defaultValue("App\\Entity\\User")->end()
             ->end();
         ;
+    }
+
+    // (removed duplicate loadExtension; logic is in the main method above)
+
+    public function prependExtension(ContainerConfigurator $container, ContainerBuilder $builder): void
+    {
+        if ($builder->hasExtension('knpu_oauth2_client')) {
+            $providers = [];
+            foreach ($builder->getExtensionConfig($this->extensionAlias) as $config) {
+                if (!isset($config['providers']) || !is_array($config['providers'])) {
+                    continue;
+                }
+
+                foreach ($config['providers'] as $provider => $providerConfig) {
+                    if (!is_array($providerConfig)) {
+                        continue;
+                    }
+
+                    $providers[$provider] = array_merge($providers[$provider] ?? [], $providerConfig);
+                }
+            }
+
+            if ($providers !== []) {
+                $clients = [];
+                foreach ($providers as $provider => $providerConfig) {
+                    if (!array_key_exists('client_id', $providerConfig) || !array_key_exists('client_secret', $providerConfig)) {
+                        continue;
+                    }
+
+                    $clients[$provider] = [
+                        'type' => $providerConfig['type'] ?? $provider,
+                        'client_id' => $providerConfig['client_id'],
+                        'client_secret' => $providerConfig['client_secret'],
+                        'redirect_route' => $providerConfig['redirect_route'] ?? 'app_oauth_check',
+                        'redirect_params' => $providerConfig['redirect_params'] ?? ['provider' => $provider],
+                    ];
+
+                    if (array_key_exists('use_state', $providerConfig) && null !== $providerConfig['use_state']) {
+                        $clients[$provider]['use_state'] = (bool) $providerConfig['use_state'];
+                    }
+
+                }
+
+                if ($clients !== []) {
+                    $builder->prependExtensionConfig('knpu_oauth2_client', [
+                        'clients' => $clients,
+                    ]);
+                }
+            }
+        }
+
+        if (!$builder->hasExtension('ux_icons')) {
+            return;
+        }
+
+        $aliases = [
+            'github' => 'mdi:github',
+            'google' => 'mdi:google',
+            'facebook' => 'mdi:facebook',
+            'twitter' => 'mdi:twitter',
+            'user' => 'mdi:account',
+            'add_user' => 'mdi:account-plus',
+            'login' => 'mdi:login',
+            'logout' => 'mdi:logout',
+            'profile' => 'mdi:account',
+            'settings' => 'mdi:cog',
+            'link' => 'mdi:link',
+            'unlink' => 'mdi:link-off',
+        ];
+
+        if (class_exists(\Survos\TablerBundle\SurvosTablerBundle::class)) {
+            $aliases = [
+                'github' => 'tabler:brand-github',
+                'google' => 'tabler:brand-google',
+                'facebook' => 'tabler:brand-facebook',
+                'twitter' => 'tabler:brand-twitter',
+                'user' => 'tabler:user',
+                'add_user' => 'tabler:user-plus',
+                'login' => 'tabler:login',
+                'logout' => 'tabler:logout',
+                'profile' => 'tabler:user',
+                'settings' => 'tabler:settings',
+                'link' => 'tabler:link',
+                'unlink' => 'tabler:unlink',
+            ];
+        }
+
+        $builder->prependExtensionConfig('ux_icons', [
+            'aliases' => $aliases,
+        ]);
     }
 }
