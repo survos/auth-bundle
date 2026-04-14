@@ -20,10 +20,9 @@
         "symfony/options-resolver": "^8.0",
         "symfony/password-hasher": "^8.0",
         "symfony/security-bundle": "^8.0",
-        "symfony/ux-twig-component": "^2.8",
-        "symfony/yaml": "^8.0",
+"symfony/ux-twig-component": "^2.0|^3.0",
         "twig/twig": "^3.4",
-        "symfony/ux-icons": "^2.34"
+        "symfony/ux-icons": "^2.0|^3.0"
     },
     "require-dev": {
         "roave/security-advisories": "dev-latest",
