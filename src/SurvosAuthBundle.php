@@ -17,15 +17,27 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 use Survos\AuthBundle\Twig\Components\OAuth;
+use Survos\CoreBundle\Traits\HasConfigurableRoutes;
 class SurvosAuthBundle extends AbstractBundle
 {
+    use HasConfigurableRoutes;
+
     protected string $extensionAlias = 'survos_auth';
 
     /**
      * @param array<mixed> $config
      */
+    public function build(ContainerBuilder $container): void
+    {
+        parent::build($container);
+        $this->addRouteLoaderCompilerPass($container);
+    }
+
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
+        $this->captureRouteConfig($config);
+        $this->registerRouteLoader($builder);
+
         $builder->setParameter('survos_auth.providers', $config['providers'] ?? []);
         $builder->setParameter('survos_auth.production_url_base', $config['production_url_base'] ?? null);
 
@@ -110,9 +122,9 @@ class SurvosAuthBundle extends AbstractBundle
 
     public function configure(DefinitionConfigurator $definition): void
     {
-        // since the configuration is short, we can add it here
-        $definition->rootNode()
-            ->children()
+        $children = $definition->rootNode()->children();
+        $this->addRouteOptions($children, '/auth');
+        $children
             ->arrayNode('providers')
                 ->useAttributeAsKey('name')
                 ->arrayPrototype()
@@ -131,8 +143,7 @@ class SurvosAuthBundle extends AbstractBundle
             ->scalarNode('production_url_base')->defaultNull()->end()
             ->scalarNode('user_provider')->defaultValue(null)->end()
             ->scalarNode('user_class')->defaultValue("App\\Entity\\User")->end()
-            ->end();
-        ;
+        ->end();
     }
 
     // (removed duplicate loadExtension; logic is in the main method above)
