@@ -9,7 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 trait OAuthIdentifiersTrait
 {
 
-    #[ORM\Column(type: Types::JSON, nullable: true, options: ['jsonb' => true])]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     #[Groups(['oauth.read'])]
     private ?array $identifiers=null;
 
