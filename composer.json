@@ -23,7 +23,7 @@
         "symfony/ux-twig-component": "^2.0|^3.0",
         "twig/twig": "^3.4",
         "symfony/ux-icons": "^2.0|^3.0",
-        "survos/kit-bundle": "^2.0"
+        "survos/kit-bundle": "^2.5"
     },
     "require-dev": {
         "roave/security-advisories": "dev-latest",
