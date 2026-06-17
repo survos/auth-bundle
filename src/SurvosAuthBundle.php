@@ -18,6 +18,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Survos\Kit\AbstractSurvosBundle;
 use Survos\AuthBundle\Twig\Components\OAuth;
 use Survos\Kit\Traits\HasConfigurableRoutes;
+// Symfony\Component\HttpKernel\Bundle\Bundle <-- Flex auto-registration marker (see Survos\Kit\AbstractSurvosBundle)
 class SurvosAuthBundle extends AbstractSurvosBundle
 {
     use HasConfigurableRoutes;
