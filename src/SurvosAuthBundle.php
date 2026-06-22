@@ -79,6 +79,14 @@ class SurvosAuthBundle extends AbstractSurvosBundle
 
 
 
+        // SurvosTabler is optional; only wire the admin-navbar menu when it's installed.
+        if (class_exists(\Survos\TablerBundle\Event\MenuEvent::class)) {
+            $container->services()
+                ->set(\Survos\AuthBundle\Menu\AuthMenuSubscriber::class)
+                ->autowire()
+                ->autoconfigure();
+        }
+
         $definition = $builder
             ->autowire('survos.auth_twig', TwigExtension::class)
             ->addTag('twig.extension');
@@ -201,6 +209,7 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         }
 
         $aliases = [
+            'auth' => 'mdi:shield-account',
             'github' => 'mdi:github',
             'google' => 'mdi:google',
             'facebook' => 'mdi:facebook',
@@ -217,6 +226,7 @@ class SurvosAuthBundle extends AbstractSurvosBundle
 
         if (class_exists(\Survos\TablerBundle\SurvosTablerBundle::class)) {
             $aliases = [
+                'auth' => 'tabler:shield-lock',
                 'github' => 'tabler:brand-github',
                 'google' => 'tabler:brand-google',
                 'facebook' => 'tabler:brand-facebook',

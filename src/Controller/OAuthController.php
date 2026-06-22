@@ -116,14 +116,13 @@ class OAuthController extends AbstractController
     }
 
     #[Route("/providers", name: "oauth_providers", methods: [Request::METHOD_GET])]
-    public function providers(Request $request)
-    {
+    public function providers(
+        #[MapQueryParameter] bool $refresh = false,
+    ) {
         $providers =  $this->baseService->getCombinedOauthData();
 
         $oauthClients = $this->baseService->getOauthClients();
         $clientRegistry = $this->clientRegistry;
-
-        $refresh = $request->get('refresh', false);
 
         // what we want is ALL the available clients, with their configuration if available.
 
@@ -186,63 +185,6 @@ class OAuthController extends AbstractController
         $redirect->setTargetUrl(str_replace('http%3A', 'https%3A', $redirect->getTargetUrl()));
         //         throw new \Exception($redirect);
         return $redirect;
-
-
-
-        $provider = $client->getOAuth2Provider();
-        if (false)
-            if ($clientKey == 'dropbox') {
-                if (!$code = $request->get('code')) {
-                    $authUrl = $provider->getAuthorizationUrl();
-                    $redirect = $client->redirect($scopes[$clientKey] ?? [], ['state' => $provider->getState()]);
-                    //        dump($redirect->getTargetUrl());
-                    $redirect->setTargetUrl(str_replace('http%3A', 'https%3A', $redirect->getTargetUrl()));
-                    return $redirect;
-
-                    $_SESSION['oauth2state'] = $provider->getState();
-
-                    header('Location: '.$authUrl);
-                    exit;
-                }
-                $state = $request->get('state');
-                dd($state, $_SESSION);
-                if (empty($_GET['state']) || ($_GET['state'] !== $_SESSION['oauth2state'])) {
-
-                    unset($_SESSION['oauth2state']);
-                    exit('Invalid state');
-
-                } else {
-
-                    // Try to get an access token (using the authorization code grant)
-                    $token = $provider->getAccessToken('authorization_code', [
-                        'code' => $_GET['code']
-                    ]);
-
-                    // Optional: Now you have a token you can look up a users profile data
-                    try {
-
-                        // We got an access token, let's now get the user's details
-                        $user = $provider->getResourceOwner($token);
-
-                        // Use these details to create a new profile
-                        printf('Hello %s!', $user->getId());
-
-                    } catch (Exception $e) {
-
-                        // Failed to get user details
-                        exit('Oh dear...');
-                    }
-                }
-
-
-            }
-
-        // will redirect to an external OAuth server
-        $redirect = $client->redirect($scopes[$clientKey] ?? [], ['state' => $client->getOAuth2Provider()->getState()]);
-        //        dump($redirect->getTargetUrl());
-        $redirect->setTargetUrl(str_replace('http%3A', 'https%3A', $redirect->getTargetUrl()));
-        //         throw new \Exception($redirect);
-        return $redirect;
     }
 
     /**
@@ -256,12 +198,11 @@ class OAuthController extends AbstractController
         Request $request,
         string $clientKey,
         #[MapQueryParameter] ?string $error = null, // github at least
-        #[MapQueryParameter] ?string $errorDescription = null, // github at least
+        #[MapQueryParameter('error_description')] ?string $errorDescription = null, // github at least
+        #[MapQueryParameter] ?string $code = null,
+        #[MapQueryParameter] ?string $state = null,
     ) {
 
-        if ($request->get('error')) {
-            dd($request->query->all());
-        }
         $clientRegistry = $this->clientRegistry;
 
         /** @var OAuth2ClientInterface $client */
@@ -311,9 +252,9 @@ class OAuthController extends AbstractController
         }
 
 
-        if ($error = $request->get('error')) {
+        if ($error) {
             $this->addFlash('error', $error);
-            $this->addFlash('error', $request->get('error_description'));
+            $this->addFlash('error', $errorDescription);
             return $this->redirectToRoute('app_login');
         }
 
@@ -341,8 +282,8 @@ class OAuthController extends AbstractController
             return new RedirectResponse($this->generateUrl('app_register', [
                 'email' => $email,
                 'id' => $identifier,
-                'state' => $request->get('state'),
-                'code' => $request->get('code'),
+                'state' => $state,
+                'code' => $code,
                 'accessToken' => $accessToken,
                 'client' => $clientKey,
             ]));
@@ -402,32 +343,4 @@ class OAuthController extends AbstractController
     }
 
 
-    /**
-     * After going to Github, you're redirected back here
-     * because this is the "redirect_route" you configured
-     * in config/packages/knpu_oauth2_client.yaml
-     *
-     */
-    #[Route('/social_login/{clientKey}', name: 'oauth_connect_check', methods: [Request::METHOD_GET])]
-    private function connectCheckAction(Request $request, UserProviderInterface $userProvider)
-    {
-        // ** if you want to *authenticate* the user, then
-        // leave this method blank and create a Guard authenticator
-        // (read below)
-
-        // leave it blank, per the instructions, and handle the redirect in the Guard
-
-        // if it comes back from the guard to here,
-        $user = $this->getUser();
-        if ($user->getId()) {
-            $targetUrl = $this->router->generate('app_homepage', [
-                'login' => 'success',
-            ]);
-        } else {
-            $targetUrl = $this->router->generate('app_register', [
-                'email' => $user->getEmail(),
-            ]);
-        }
-        return new RedirectResponse($targetUrl);
-    }
 }
