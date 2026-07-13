@@ -9,7 +9,7 @@
     {% for clientKey in this.clientKeys %}
         <a
             class="{{ this.buttonClass }}"
-            href="{{ path('auth_oauth_connect', {provider: clientKey}) }}"
+            href="{{ path('oauth_connect_start', {clientKey: clientKey}) }}"
         >
             {{ ux_icon(clientKey, { class: 'me-1' }) }}
             Continue with {{ clientKey|title }}
