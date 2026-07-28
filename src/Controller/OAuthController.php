@@ -112,6 +112,7 @@ class OAuthController extends AbstractController
             'urls' => $providerDetails['provider']??[],
             'package' => $package ? array_values($package)[0]: null,
             'classExists' => class_exists($provider['class']),
+            'isConfigured' => \in_array($providerKey, $this->clientRegistry->getEnabledClientKeys(), true),
         ]);
     }
 

@@ -58,7 +58,11 @@
     {# https://stackoverflow.com/questions/22581345/click-button-copy-to-clipboard-using-jquery #}
     {% set callback = url('oauth_connect_check', {clientKey: clientKey})   %}
     <textarea cols="90" rows="1">{{ callback }}</textarea>
-    <a href="{{ callback }}" target="_blank"><i class="fas fa-external-link"></i></a>
+    {% if isConfigured %}
+        <a href="{{ callback }}" target="_blank"><i class="fas fa-external-link"></i></a>
+    {% else %}
+        <i class="fas fa-external-link text-muted" title="Configure this provider first — the callback URL isn't live yet"></i>
+    {% endif %}
 
 
     <h3>Configure live keys (.env.local)</h3>
