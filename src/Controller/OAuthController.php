@@ -159,6 +159,9 @@ class OAuthController extends AbstractController
         ];
         ;
 
+        if (!\in_array($clientKey, $this->clientRegistry->getEnabledClientKeys(), true)) {
+            throw $this->createNotFoundException(sprintf('OAuth client "%s" is not configured in config/packages/knpu_oauth2_client.yaml.', $clientKey));
+        }
         $client = $this->clientRegistry->getClient($clientKey); // key used in config/packages/knpu_oauth2_client.yaml
         $redirect = $client
             ->redirect($scopes[$clientKey]??[],[]);
@@ -204,6 +207,10 @@ class OAuthController extends AbstractController
     ) {
 
         $clientRegistry = $this->clientRegistry;
+
+        if (!\in_array($clientKey, $clientRegistry->getEnabledClientKeys(), true)) {
+            throw $this->createNotFoundException(sprintf('OAuth client "%s" is not configured in config/packages/knpu_oauth2_client.yaml.', $clientKey));
+        }
 
         /** @var OAuth2ClientInterface $client */
         $client = $clientRegistry->getClient($clientKey);
