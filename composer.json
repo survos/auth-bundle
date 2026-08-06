@@ -21,7 +21,7 @@
         "symfony/password-hasher": "^8.1",
         "symfony/security-bundle": "^8.1",
         "symfony/ux-twig-component": "^3",
-        "twig/twig": "^3.4",
+        "twig/twig": "^3.4|^4.0",
         "symfony/ux-icons": "^3",
         "survos/kit-bundle": "^2.5"
     },
