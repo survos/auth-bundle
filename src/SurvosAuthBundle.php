@@ -36,6 +36,14 @@ class SurvosAuthBundle extends AbstractSurvosBundle
 
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
+        // MUST come first: AbstractSurvosBundle::loadExtension() is what scans src/Command/,
+        // src/Controller/ and friends and registers them autowired+autoconfigured. Overriding
+        // this method without chaining silently skips that scan — the bundle boots, its
+        // explicitly-registered services work, and #[AsCommand] classes simply never exist.
+        // That is why survos:user:create was missing from bin/console while the bundle was
+        // otherwise healthy. build() already chained; this one did not.
+        parent::loadExtension($config, $container, $builder);
+
         $this->captureRouteConfig($config);
         $this->registerRouteLoader($builder);
 
