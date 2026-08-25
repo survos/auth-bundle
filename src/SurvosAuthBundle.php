@@ -18,6 +18,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Survos\Kit\AbstractSurvosBundle;
 use Survos\AuthBundle\Twig\Components\OAuth;
 use Survos\Kit\Traits\HasConfigurableRoutes;
+use Survos\AuthBundle\Security\DevAutoLoginAuthenticator;
 // Symfony\Component\HttpKernel\Bundle\Bundle <-- Flex auto-registration marker (see Survos\Kit\AbstractSurvosBundle)
 class SurvosAuthBundle extends AbstractSurvosBundle
 {
@@ -49,6 +50,17 @@ class SurvosAuthBundle extends AbstractSurvosBundle
 
         $builder->setParameter('survos_auth.providers', $config['providers'] ?? []);
         $builder->setParameter('survos_auth.production_url_base', $config['production_url_base'] ?? null);
+
+        // Dev auto-login. Registered only when configured AND in debug — an app that leaves
+        // dev_auto_login unset (or sets it via an env var that is empty in prod) never gets the
+        // service at all, so it cannot be reached by a stray custom_authenticators entry.
+        $devAutoLogin = trim((string) ($config['dev_auto_login'] ?? ''));
+        if ($devAutoLogin !== '' && $builder->getParameter('kernel.debug')) {
+            $builder->autowire(DevAutoLoginAuthenticator::class)
+                ->setArgument('$userIdentifier', $devAutoLogin)
+                ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+                ->setPublic(false);
+        }
 
         $serviceId = 'survos_auth.base_service';
         $container->services()->alias(AuthService::class, $serviceId);
@@ -160,6 +172,10 @@ class SurvosAuthBundle extends AbstractSurvosBundle
             ->scalarNode('production_url_base')->defaultNull()->end()
             ->scalarNode('user_provider')->defaultValue(null)->end()
             ->scalarNode('user_class')->defaultValue("App\\Entity\\User")->end()
+            ->scalarNode('dev_auto_login')
+                ->defaultNull()
+                ->info('User identifier (usually an email) to auto-authenticate as. Registers DevAutoLoginAuthenticator, which must then be listed in a when@dev firewall\'s custom_authenticators. Ignored entirely outside debug mode — there is no production code path. Point it at an env var so it can be switched off without editing security.yaml.')
+            ->end()
         ->end();
     }
 
