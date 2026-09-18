@@ -67,7 +67,6 @@ class AuthService
         // dump($obj, $prop);
         try {
             $property = $reflection->getProperty($prop);
-            $property->setAccessible(true);
             return $property->getValue($obj);
         } catch (\Exception $e) {
             // log the error?
