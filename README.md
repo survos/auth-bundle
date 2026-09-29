@@ -63,6 +63,18 @@ knpu_oauth2_client:
 
 Implement `OAuthIdentifiersInterface` and use `OAuthIdentifiersTrait`.
 
+All providers share one nullable `identifiers` JSONB column. Do not add provider-specific
+ID properties or traits such as `GoogleIdTrait`. Adding a provider needs configuration,
+not another database migration. Password hashes remain separate; OAuth-only users need
+a nullable password column.
+
+The public `identifiers` property uses a PHP property hook to normalize legacy string
+IDs into records. `setIdentifier('google', '123')` stores `['google' => ['id' => '123']]`;
+setting another provider preserves the existing entries. Existing array records remain
+readable, and the method accessors remain available for existing callers. New login
+records contain the provider ID, not access tokens or a complete provider profile.
+Exclude this field from session serialization if legacy records contain tokens.
+
 ```php
 use Survos\AuthBundle\Traits\OAuthIdentifiersInterface;
 use Survos\AuthBundle\Traits\OAuthIdentifiersTrait;
@@ -89,4 +101,30 @@ Twig components are available and should be rendered with `twig:` tags.
 <twig:auth_login />
 <twig:auth_register />
 <twig:auth_profile />
+```
+
+## Local accounts and sign-in methods
+
+Social login creates an app-owned user with a nullable password. Returning users are
+looked up by provider key and stable subject in `identifiers`, including legacy scalar
+and `token` records. Email alone never links accounts. PostgreSQL and SQLite are supported;
+other platforms need a corresponding JSON lookup implementation.
+
+A matching email prompts the reader to sign in using their existing method and then
+connect the provider from Account settings. `/auth/account` (`auth_profile`) offers
+CSRF-protected provider linking and optional password creation. Linking requires an
+existing authenticated session and a fresh provider authorization with matching state;
+identities already owned by another user cannot be attached. Existing passwords must
+be supplied before replacement. Passwords use Symfony's configured hasher.
+
+The local user's ID stays unchanged, so bookmarks, folders, and other app-owned data
+remain attached regardless of sign-in method. Museum membership, onboarding and role
+approval remain the host application's responsibility. Configure `login_route` (default
+`app_login`) and `new_user_redirect_route` for the host app. The callback must be handled
+by `Survos\AuthBundle\Security\Authenticator` on the firewall.
+
+Bundle regression tests from the monorepo:
+
+```bash
+vendor/bin/phpunit --no-configuration --bootstrap bu/auth-bundle/tests/bootstrap.php bu/auth-bundle/tests
 ```

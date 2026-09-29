@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Survos\AuthBundle\Menu;
 
 use Survos\AuthBundle\Service\AuthService;
+use Survos\CloudflaredBundle\Service\Tunnel;
 use Survos\TablerBundle\Event\MenuEvent;
 use Survos\TablerBundle\Menu\MenuBuilderTrait;
 use Survos\TablerBundle\Service\IconService;
 use Survos\TablerBundle\Service\RouteAliasService;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Routing\RouterInterface;
 
 /**
@@ -30,6 +32,9 @@ final class AuthMenuSubscriber
         protected readonly ?RouteAliasService $routeAliasService = null,
         protected readonly ?IconService       $iconService       = null,
         protected readonly ?AuthService       $authService       = null,
+        private readonly ?Tunnel $tunnel = null,
+        private readonly ?RequestStack $requestStack = null,
+        private readonly ?string $productionUrlBase = null,
     ) {}
 
     #[AsEventListener(event: MenuEvent::ADMIN_NAVBAR_MENU)]
@@ -55,5 +60,20 @@ final class AuthMenuSubscriber
         $this->add($submenu, 'oauth_profile', label: 'Profile', icon: 'profile');
         $this->add($submenu, 'auth_login', label: 'Login', icon: 'login');
         $this->add($submenu, 'auth_register', label: 'Register', icon: 'add_user');
+
+        $currentHost = $this->requestStack?->getMainRequest()?->getHost();
+        $dividerBefore = true;
+        foreach ([
+            'Open tunnel' => $this->tunnel?->url(),
+            'Open live site' => $this->productionUrlBase,
+        ] as $label => $url) {
+            if (!$url || ($currentHost !== null && strcasecmp((string) parse_url($url, PHP_URL_HOST), $currentHost) === 0)) {
+                continue;
+            }
+
+            $this->add($submenu, label: $label, uri: $url, external: true, dividerBefore: $dividerBefore)
+                ->setLinkAttribute('rel', 'noopener noreferrer');
+            $dividerBefore = false;
+        }
     }
 }

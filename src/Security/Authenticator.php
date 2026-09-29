@@ -1,143 +1,97 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Survos\AuthBundle\Security;
 
-use App\Entity\User;
-
-// your user entity
-use Doctrine\ORM\EntityManagerInterface;
 use KnpU\OAuth2ClientBundle\Client\ClientRegistry;
-use KnpU\OAuth2ClientBundle\Client\OAuth2ClientInterface;
 use KnpU\OAuth2ClientBundle\Security\Authenticator\OAuth2Authenticator;
-use Survos\AuthBundle\Traits\OAuthIdentifiersInterface;
+use Survos\AuthBundle\Service\OAuthUserResolver;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\RouterInterface;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
+use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 use Symfony\Component\Security\Http\Authenticator\Passport\Passport;
 use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPassport;
 use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
+use Symfony\Component\Security\Http\SecurityRequestAttributes;
 use Symfony\Component\Security\Http\Util\TargetPathTrait;
 
-/**
- * Custom class to simplify loading the user from an oAuth provider
- *
- */
-class Authenticator extends OAuth2Authenticator implements AuthenticationEntrypointInterface
+final class Authenticator extends OAuth2Authenticator implements AuthenticationEntryPointInterface
 {
     use TargetPathTrait;
 
-    public function __construct(private ClientRegistry         $clientRegistry,
-                                private EntityManagerInterface $entityManager,
-                                private RouterInterface        $router,
-                                private string                 $userClass,
-                                private string                 $newUserRedirectRoute,
-    )
-    {
-    }
+    public const LINK_SESSION = 'survos_auth.link';
 
-    public function supports(Request $request): ?bool
+    public function __construct(
+        private ClientRegistry $clientRegistry,
+        private OAuthUserResolver $userResolver,
+        private RouterInterface $router,
+        private TokenStorageInterface $tokenStorage,
+        private string $newUserRedirectRoute,
+        private string $loginRoute,
+    ) {}
+
+    public function supports(Request $request): bool
     {
-        // continue ONLY if the current ROUTE matches the check ROUTE
         return $request->attributes->get('_route') === 'oauth_connect_check';
     }
 
     public function authenticate(Request $request): Passport
     {
-        $clientKey = $request->get('clientKey');
-//        dd($request->query->all());
-        $client = $this->clientRegistry->getClient($clientKey);
-        $accessToken = $this->fetchAccessToken($client);
-
-        return new SelfValidatingPassport(
-            new UserBadge($accessToken->getToken(), function () use ($accessToken, $client, $clientKey) {
-                /** @var OAuth2ClientInterface $facebookUser */
-                $oAuthUser = $client->fetchUserFromToken($accessToken);
-
-                $identifier = $oAuthUser->getId();
-                $email = method_exists($oAuthUser, 'getEmail')
-                    ? $oAuthUser->getEmail()
-                    : $oAuthUser->toArray()['email'] ?? null;
-
-                if (empty($email)) {
-                    dd($oAuthUser);
-                }
-                assert($email, "missing email");
-                // 1) have they logged in before?
-                $existingUser = $this->entityManager->getRepository($this->userClass)->findOneBy(['email' => $email]);
-
-                // create a user with an empty password and the oauth info.  But then we need to redirect to /register
-                /** @var OAuthIdentifiersInterface $user */
-                $user = null;
-                if (!$existingUser) {
-                    // should be a setting in the bundle if this is the desired behavior
-                    $user = (new $this->userClass)->setEmail($email);
-                } else {
-                    $user = $existingUser;
-                }
-                // now update the provider keys.
-                if ($user) {
-                    $user->setIdentifier($clientKey, [
-                        'accessToken' => json_decode(json_encode($accessToken)),
-                        'token' => $identifier, 'data' => $oAuthUser->toArray()]);
-//                dd($accessToken, $email, $oAuthUser->toArray(), $identifier, $user, $user->getIdentifiers());
-
-                    $this->entityManager->persist($user);
-                    $this->entityManager->flush();
-
-                }
-
-                return $user;
-            })
-        );
-    }
-
-    public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response
-    {
-        $clientKey = $request->attributes->get('clientKey');
-        // @todo: only if new user, otherwise let it continue normally.
-//        dd($token, $firewallName, $request);
-        // if we wanted to hide the userid, we could set it in a session
-        // only if new!
-        $user = $token->getUser();
-        if ($targetPath = $this->getTargetPath($request->getSession(), $firewallName)) {
-            return new RedirectResponse($targetPath);
+        $provider = $request->attributes->getString('clientKey');
+        $pending = $request->getSession()->remove(self::LINK_SESSION);
+        if ($request->query->has('error')) {
+            throw new CustomUserMessageAuthenticationException('Sign-in was cancelled or declined. Please try again.');
         }
-
-        $targetUrl = $this->router->generate($this->newUserRedirectRoute, [
-            'userId' => $token->getUser()->getUserIdentifier(),
-            'clientKey' => $clientKey
-        ]);
-
-        return new RedirectResponse($targetUrl);
-
-        // or, on success, let the request continue to be handled by the controller
-        //return null;
+        $client = $this->clientRegistry->getClient($provider);
+        $accessToken = $this->fetchAccessToken($client);
+        $identity = $client->fetchUserFromToken($accessToken);
+        $linkTo = null;
+        if ($pending !== null) {
+            $linkTo = $this->tokenStorage->getToken()?->getUser();
+            if (!is_array($pending) || $linkTo === null || ($pending['provider'] ?? null) !== $provider
+                || ($pending['user'] ?? null) !== $linkTo->getUserIdentifier()
+                || ($pending['expires'] ?? 0) < time()
+                || !hash_equals((string) ($pending['state'] ?? ''), $request->query->getString('state'))) {
+                throw new CustomUserMessageAuthenticationException('The account connection expired. Please start again from Account settings.');
+            }
+            $request->attributes->set('_survos_auth_linking', true);
+        }
+        return new SelfValidatingPassport(new UserBadge(
+            $provider . ':' . $identity->getId(),
+            fn () => $this->userResolver->resolve($provider, $identity, $linkTo),
+        ));
     }
 
-    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): ?Response
+    public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): Response
     {
-        $params = $request->query->all();
-        $formattedJson = json_encode($params, JSON_PRETTY_PRINT);
-        $message = strtr($exception->getMessageKey(), $exception->getMessageData()) . "\n" . $formattedJson;
-//        dd($request->query->all());
-//        dd($request, $exception, $message);
-
-        return new Response($message, Response::HTTP_FORBIDDEN, ['headers' => ['Content-Type' => 'text/plain']]);
+        if ($request->attributes->get('_survos_auth_linking')) {
+            return new RedirectResponse($this->router->generate('auth_profile'));
+        }
+        if ($target = $this->getTargetPath($request->getSession(), $firewallName)) {
+            $this->removeTargetPath($request->getSession(), $firewallName);
+            return new RedirectResponse($target);
+        }
+        return new RedirectResponse($this->router->generate($this->newUserRedirectRoute));
     }
 
-    /**
-     * Called when authentication is needed, but it's not sent.
-     * This redirects to the 'login'.
-     */
+    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): Response
+    {
+        $request->getSession()->remove(self::LINK_SESSION);
+        $message = $exception instanceof CustomUserMessageAuthenticationException
+            ? $exception->getMessageKey() : 'Unable to sign in. Please start again.';
+        $request->getSession()->set(SecurityRequestAttributes::AUTHENTICATION_ERROR, new CustomUserMessageAuthenticationException($message));
+        return new RedirectResponse($this->router->generate($this->loginRoute));
+    }
+
     public function start(Request $request, ?AuthenticationException $authException = null): Response
     {
-        return new RedirectResponse(
-            '/connect/', // might be the site, where users choose their oauth provider
-            Response::HTTP_TEMPORARY_REDIRECT
-        );
+        return new RedirectResponse($this->router->generate($this->loginRoute));
     }
 }

@@ -87,14 +87,16 @@ class SurvosAuthBundle extends AbstractSurvosBundle
                 ->setAutoconfigured(true);
         }
 
+        $builder->autowire(\Survos\AuthBundle\Service\OAuthUserResolver::class)
+            ->setArgument('$userClass', $config['user_class']);
+
         $definition = $builder->autowire(Authenticator::class)
             ->setAutowired(true)
             ->setAutoconfigured(true)
             ->setArgument('$clientRegistry', new Reference('knpu.oauth2.registry'))
-            ->setArgument('$entityManager', new Reference('doctrine.orm.entity_manager'))
             ->setArgument('$router', new Reference('router'))
-            ->setArgument('$userClass', $config['user_class'])
             ->setArgument('$newUserRedirectRoute', $config['new_user_redirect_route'])
+            ->setArgument('$loginRoute', $config['login_route'])
             ;
 
 
@@ -103,6 +105,8 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         if (class_exists(\Survos\TablerBundle\Event\MenuEvent::class)) {
             $container->services()
                 ->set(\Survos\AuthBundle\Menu\AuthMenuSubscriber::class)
+                ->arg('$tunnel', new Reference(\Survos\CloudflaredBundle\Service\Tunnel::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+                ->arg('$productionUrlBase', $config['production_url_base'])
                 ->autowire()
                 ->autoconfigure();
         }
@@ -130,7 +134,6 @@ class SurvosAuthBundle extends AbstractSurvosBundle
             ->setArgument('$clientRegistry', new Reference('knpu.oauth2.registry'))
 //            ->setArgument('$userAuthenticator', new Reference('security.user_authenticator'))
 //            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-                ->setArgument('$userClass', $config['user_class'])
             ->setPublic(true);
 
         foreach ([LoginController::class, RegisterController::class, ProfileController::class] as $controllerClass) {
@@ -138,15 +141,11 @@ class SurvosAuthBundle extends AbstractSurvosBundle
                 ->setAutowired(true)
                 ->setAutoconfigured(true)
                 ->setPublic(true)
-                ->addTag('controller.service_arguments');
+                ;
         }
 
 
-        if ($userProviderServiceId = $config['user_provider']) {
-            $definition
-                ->addMethodCall('setUserProvider', [new Reference($userProviderServiceId)])
-            ;
-        }
+
     }
 
     public function configure(DefinitionConfigurator $definition): void
@@ -168,6 +167,7 @@ class SurvosAuthBundle extends AbstractSurvosBundle
                     ->end()
                 ->end()
             ->end()
+            ->scalarNode('login_route')->defaultValue('app_login')->end()
             ->scalarNode('new_user_redirect_route')->defaultValue('oauth_profile')->end()
             ->scalarNode('production_url_base')->defaultNull()->end()
             ->scalarNode('user_provider')->defaultValue(null)->end()
@@ -210,8 +210,8 @@ class SurvosAuthBundle extends AbstractSurvosBundle
                         'type' => $providerConfig['type'] ?? $provider,
                         'client_id' => $providerConfig['client_id'],
                         'client_secret' => $providerConfig['client_secret'],
-                        'redirect_route' => $providerConfig['redirect_route'] ?? 'app_oauth_check',
-                        'redirect_params' => $providerConfig['redirect_params'] ?? ['provider' => $provider],
+                        'redirect_route' => $providerConfig['redirect_route'] ?? 'oauth_connect_check',
+                        'redirect_params' => $providerConfig['redirect_params'] ?? ['clientKey' => $provider],
                     ];
 
                     if (array_key_exists('use_state', $providerConfig) && null !== $providerConfig['use_state']) {

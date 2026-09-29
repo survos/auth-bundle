@@ -1,7 +1,9 @@
-{% extends '@!base.html.twig' %}
-
+{% extends 'base.html.twig' %}
+{% block title %}Account settings{% endblock %}
 {% block body %}
-    <div class="container py-5">
-        <auth:profile />
-    </div>
+<div class="container py-4" style="max-width: 640px">
+    <h1>Account settings</h1>
+    <p>{{ app.user.userIdentifier }}</p>
+    <twig:auth_profile :supportsPassword="supportsPassword" :clientKeys="clientKeys" :error="error" />
+</div>
 {% endblock %}

@@ -19,7 +19,9 @@ class AuthService
         private array $config,
         private ClientRegistry $clientRegistry,
         private ?LoggerInterface $logger=null,
-        private ?RequestStack $requestStack = null
+        private ?RequestStack $requestStack = null,
+        private ?OAuthUserResolver $userResolver = null,
+        private ?\Survos\AuthBundle\Security\Authenticator $authenticator = null
 
         //        private ProviderFactory $provider
     ) {
@@ -114,63 +116,24 @@ class AuthService
         return $this->clientRegistry;
     }
 
-    // Central entry point for OAuth user resolution
-    public function getOrCreateUser(string $provider, ResourceOwnerInterface $oauthUser): UserInterface
+    public function getProviderScopes(string $provider): array
     {
-        $userClass = $this->userClass;
-
-        $data = method_exists($oauthUser, 'toArray') ? $oauthUser->toArray() : [];
-        $email = method_exists($oauthUser, 'getEmail')
-            ? $oauthUser->getEmail()
-            : ($data['email'] ?? null);
-
-        $identifier = $oauthUser->getId();
-
-        // naive lookup by email first
-        $repo = (new \ReflectionClass($userClass))->newInstanceWithoutConstructor();
-        // we cannot access EM here safely without adding deps, so delegate via trait expectations
-
-        // expectation: user provider or repository handles lookup; fallback create
-        // minimal approach: always create new instance and let app override later
-        /** @var UserInterface&OAuthIdentifiersInterface $user */
-        $user = new $userClass();
-
-        if (method_exists($user, 'setEmail') && $email) {
-            $user->setEmail($email);
-        }
-
-        if ($user instanceof OAuthIdentifiersInterface) {
-            $user->setIdentifier($provider, $identifier);
-        }
-
-        // Apply extra registration fields from session via RequestStack
-        if ($this->requestStack && ($session = $this->requestStack->getSession())) {
-            if ($session->has('auth_extra_fields')) {
-                $extra = $session->get('auth_extra_fields', []);
-                foreach ($extra as $key => $value) {
-                    $setter = 'set' . ucfirst($key);
-                    if (method_exists($user, $setter)) {
-                        $user->$setter($value);
-                    }
-                }
-                $session->remove('auth_extra_fields');
-            }
-        }
-
-        return $user;
+        return $this->config['providers'][$provider]['scopes'] ?? match ($provider) {
+            'google' => ['openid', 'email', 'profile'],
+            'github' => ['user:email', 'read:user'],
+            'facebook' => ['email', 'public_profile'],
+            default => [],
+        };
     }
 
-    // expose authenticator for controller
-    public function getAuthenticator()
+    public function getOrCreateUser(string $provider, ResourceOwnerInterface $oauthUser): UserInterface
     {
-        // rely on container autowiring alias for Authenticator class
-        return new \Survos\AuthBundle\Security\Authenticator(
-            $this->clientRegistry,
-            null,
-            null,
-            $this->userClass,
-            null
-        );
+        return ($this->userResolver ?? throw new \LogicException('OAuthUserResolver is not configured.'))->resolve($provider, $oauthUser);
+    }
+
+    public function getAuthenticator(): \Survos\AuthBundle\Security\Authenticator
+    {
+        return $this->authenticator ?? throw new \LogicException('OAuth authenticator is not configured.');
     }
 
     // the hand-curated list of URLs.  Written by hand

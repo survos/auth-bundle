@@ -1,10 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Survos\AuthBundle\Traits;
 
-use Doctrine\DBAL\Types\Types;
-use Symfony\Component\Serializer\Attribute\Groups;
-use Doctrine\ORM\Mapping as ORM;
 
 interface OAuthIdentifiersInterface
 {
@@ -14,6 +13,6 @@ interface OAuthIdentifiersInterface
     public function getIdentifiers(): ?array;
     public function getIdentifierData(string $clientKey): ?array;
     public function setIdentifiers(?array $identifiers): self;
-    public function setIdentifier(string $clientKey, string $token): self;
+    public function setIdentifier(string $clientKey, string|array $token): self;
 
 }
