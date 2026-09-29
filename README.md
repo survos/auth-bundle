@@ -128,3 +128,10 @@ Bundle regression tests from the monorepo:
 ```bash
 vendor/bin/phpunit --no-configuration --bootstrap bu/auth-bundle/tests/bootstrap.php bu/auth-bundle/tests
 ```
+
+## Setup skill
+
+Use [oauth-login](skills/oauth-login/SKILL.md) when wiring another application:
+provider callbacks, app-owned accounts, optional passwords, linking, credentials,
+schema rollout, and verification. It includes Ink's working configuration as a
+reference without embedding credentials.
