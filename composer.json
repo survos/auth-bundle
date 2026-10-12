@@ -11,7 +11,7 @@
     "type": "symfony-bundle",
     "require": {
         "php": "^8.5",
-        "doctrine/orm": "^3.3",
+        "doctrine/orm": "^3.7",
         "knpuniversity/oauth2-client-bundle": "^2.20",
         "symfony/config": "^7.4||^8.1",
         "symfony/console": "^7.4||^8.1",
