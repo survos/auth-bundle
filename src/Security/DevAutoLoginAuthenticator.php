@@ -31,8 +31,9 @@ use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPasspor
  * `survos_auth.dev_auto_login` names a user, and it steps aside for the auth routes themselves so
  * the real login flow stays reachable even while it is on.
  *
- * The service is only registered when configured AND the kernel is in debug mode; wire it into a
- * `when@dev` firewall block. It has no production code path.
+ * The service is always registered, so a `when@dev` firewall can name it in any debug mode, but it
+ * only acts when configured AND the kernel is in debug: otherwise supports() is false for every
+ * request. It has no production code path.
  */
 final class DevAutoLoginAuthenticator extends AbstractAuthenticator
 {
@@ -46,11 +47,16 @@ final class DevAutoLoginAuthenticator extends AbstractAuthenticator
     public function __construct(
         private readonly string $userIdentifier,
         private readonly ?LoggerInterface $logger = null,
+        private readonly bool $enabled = true,
     ) {
     }
 
     public function supports(Request $request): ?bool
     {
+        if (!$this->enabled) {
+            return false;
+        }
+
         foreach (self::SKIP_PREFIXES as $prefix) {
             if (str_starts_with($request->getPathInfo(), $prefix)) {
                 return false;

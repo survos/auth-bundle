@@ -51,16 +51,18 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         $builder->setParameter('survos_auth.providers', $config['providers'] ?? []);
         $builder->setParameter('survos_auth.production_url_base', $config['production_url_base'] ?? null);
 
-        // Dev auto-login. Registered only when configured AND in debug — an app that leaves
-        // dev_auto_login unset (or sets it via an env var that is empty in prod) never gets the
-        // service at all, so it cannot be reached by a stray custom_authenticators entry.
+        // Dev auto-login. Always registered, because security.yaml names it in a when@dev firewall
+        // and a named service that is missing fails the whole container: gating its EXISTENCE on
+        // debug made every `APP_ENV=dev --no-debug` CLI run uncompilable, though no command ever
+        // authenticates (harvest, 2026-10-11). Whether it acts is decided by $enabled instead: only
+        // when a user is configured AND the kernel is in debug. Otherwise supports() is always
+        // false, so prod, or an empty DEV_AUTO_LOGIN_USER, gets an authenticator that never matches.
         $devAutoLogin = trim((string) ($config['dev_auto_login'] ?? ''));
-        if ($devAutoLogin !== '' && $builder->getParameter('kernel.debug')) {
-            $builder->autowire(DevAutoLoginAuthenticator::class)
-                ->setArgument('$userIdentifier', $devAutoLogin)
-                ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-                ->setPublic(false);
-        }
+        $builder->autowire(DevAutoLoginAuthenticator::class)
+            ->setArgument('$userIdentifier', $devAutoLogin)
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$enabled', $devAutoLogin !== '' && $builder->getParameter('kernel.debug'))
+            ->setPublic(false);
 
         $serviceId = 'survos_auth.base_service';
         $container->services()->alias(AuthService::class, $serviceId);
