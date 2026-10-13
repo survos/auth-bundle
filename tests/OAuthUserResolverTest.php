@@ -34,9 +34,19 @@ final class OAuthUserResolverTest extends TestCase
     private function identity(string $id, ?string $email): ResourceOwnerInterface
     {
         return new class($id, $email) implements ResourceOwnerInterface {
-            public function __construct(private string $id, private ?string $email) {}
-            public function getId(): string { return $this->id; }
-            public function toArray(): array { return ['email' => $this->email]; }
+            public function __construct(private string $id, private ?string $email)
+            {
+            }
+
+            public function getId(): string
+            {
+                return $this->id;
+            }
+
+            public function toArray(): array
+            {
+                return ['email' => $this->email];
+            }
         };
     }
 
@@ -113,7 +123,18 @@ class ResolverUser implements UserInterface, OAuthIdentifiersInterface
     public string $email;
     #[ORM\Column(nullable: true)]
     public ?string $password = null;
-    public function getUserIdentifier(): string { return $this->email; }
-    public function getRoles(): array { return ['ROLE_USER']; }
-    public function eraseCredentials(): void {}
+
+    public function getUserIdentifier(): string
+    {
+        return $this->email;
+    }
+
+    public function getRoles(): array
+    {
+        return ['ROLE_USER'];
+    }
+
+    public function eraseCredentials(): void
+    {
+    }
 }

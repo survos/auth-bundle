@@ -35,11 +35,12 @@ final class Authenticator extends OAuth2Authenticator implements AuthenticationE
         private TokenStorageInterface $tokenStorage,
         private string $newUserRedirectRoute,
         private string $loginRoute,
-    ) {}
+    ) {
+    }
 
     public function supports(Request $request): bool
     {
-        return $request->attributes->get('_route') === 'oauth_connect_check';
+        return 'oauth_connect_check' === $request->attributes->get('_route');
     }
 
     public function authenticate(Request $request): Passport
@@ -53,9 +54,9 @@ final class Authenticator extends OAuth2Authenticator implements AuthenticationE
         $accessToken = $this->fetchAccessToken($client);
         $identity = $client->fetchUserFromToken($accessToken);
         $linkTo = null;
-        if ($pending !== null) {
+        if (null !== $pending) {
             $linkTo = $this->tokenStorage->getToken()?->getUser();
-            if (!is_array($pending) || $linkTo === null || ($pending['provider'] ?? null) !== $provider
+            if (!is_array($pending) || null === $linkTo || ($pending['provider'] ?? null) !== $provider
                 || ($pending['user'] ?? null) !== $linkTo->getUserIdentifier()
                 || ($pending['expires'] ?? 0) < time()
                 || !hash_equals((string) ($pending['state'] ?? ''), $request->query->getString('state'))) {
@@ -63,8 +64,9 @@ final class Authenticator extends OAuth2Authenticator implements AuthenticationE
             }
             $request->attributes->set('_survos_auth_linking', true);
         }
+
         return new SelfValidatingPassport(new UserBadge(
-            $provider . ':' . $identity->getId(),
+            $provider.':'.$identity->getId(),
             fn () => $this->userResolver->resolve($provider, $identity, $linkTo),
         ));
     }
@@ -76,8 +78,10 @@ final class Authenticator extends OAuth2Authenticator implements AuthenticationE
         }
         if ($target = $this->getTargetPath($request->getSession(), $firewallName)) {
             $this->removeTargetPath($request->getSession(), $firewallName);
+
             return new RedirectResponse($target);
         }
+
         return new RedirectResponse($this->router->generate($this->newUserRedirectRoute));
     }
 
@@ -87,6 +91,7 @@ final class Authenticator extends OAuth2Authenticator implements AuthenticationE
         $message = $exception instanceof CustomUserMessageAuthenticationException
             ? $exception->getMessageKey() : 'Unable to sign in. Please start again.';
         $request->getSession()->set(SecurityRequestAttributes::AUTHENTICATION_ERROR, new CustomUserMessageAuthenticationException($message));
+
         return new RedirectResponse($this->router->generate($this->loginRoute));
     }
 

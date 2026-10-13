@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Survos\AuthBundle\Command;
 
 use Doctrine\ORM\EntityManagerInterface;
@@ -11,11 +13,11 @@ use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Security\Core\Exception\UserNotFoundException;
 use Symfony\Component\Security\Core\User\UserProviderInterface;
 use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 #[AsCommand('survos:user:create', 'create a new user with a password')]
 final class UserCreateCommand
@@ -31,7 +33,7 @@ final class UserCreateCommand
 
     private function hashPassword(string $plainTextPassword, $user): string
     {
-        return $this->cache->get($plainTextPassword, fn(CacheItem $item) => $this->passwordEncoder->hashPassword($user, $plainTextPassword));
+        return $this->cache->get($plainTextPassword, fn (CacheItem $item) => $this->passwordEncoder->hashPassword($user, $plainTextPassword));
     }
 
     public function __invoke(
@@ -91,6 +93,7 @@ final class UserCreateCommand
         }
 
         $io->success("User $email $action");
+
         return Command::SUCCESS;
     }
 }

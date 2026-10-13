@@ -16,7 +16,7 @@ trait OAuthIdentifiersTrait
     public ?array $identifiers = null {
         set {
             foreach ($value ?? [] as $provider => $identity) {
-                if (!is_string($provider) || trim($provider) === '') {
+                if (!is_string($provider) || '' === trim($provider)) {
                     throw new \InvalidArgumentException('An OAuth provider key must be a non-empty string.');
                 }
                 // Normalize the original scalar ID format when loading or assigning it.

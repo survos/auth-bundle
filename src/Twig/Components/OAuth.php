@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Survos\AuthBundle\Twig\Components;
 
 use Survos\AuthBundle\Service\AuthService;
@@ -8,10 +10,10 @@ use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
 #[AsTwigComponent('OAuth', '@SurvosAuth/components/OAuth.html.twig')]
 final class OAuth
 {
-    public string $buttonClass='btn btn-primary';
+    public string $buttonClass = 'btn btn-primary';
 
     // <i class="bi bi-github"></i>
-    public string $iconPrefix='bi bi-'; // hack
+    public string $iconPrefix = 'bi bi-'; // hack
 
     public function __construct(private AuthService $authService)
     {
@@ -28,12 +30,13 @@ final class OAuth
 
     public function getKnownProviders(): array
     {
-        return ['github','google','facebook','twitter'];
+        return ['github', 'google', 'facebook', 'twitter'];
     }
 
     public function getMissingProviders(): array
     {
         $enabled = $this->getClientKeys();
+
         return array_values(array_diff($this->getKnownProviders(), $enabled));
     }
 }

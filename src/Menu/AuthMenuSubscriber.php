@@ -28,14 +28,15 @@ final class AuthMenuSubscriber
     use MenuBuilderTrait;
 
     public function __construct(
-        protected readonly ?RouterInterface   $router            = null,
+        protected readonly ?RouterInterface $router = null,
         protected readonly ?RouteAliasService $routeAliasService = null,
-        protected readonly ?IconService       $iconService       = null,
-        protected readonly ?AuthService       $authService       = null,
+        protected readonly ?IconService $iconService = null,
+        protected readonly ?AuthService $authService = null,
         private readonly ?Tunnel $tunnel = null,
         private readonly ?RequestStack $requestStack = null,
         private readonly ?string $productionUrlBase = null,
-    ) {}
+    ) {
+    }
 
     #[AsEventListener(event: MenuEvent::ADMIN_NAVBAR_MENU)]
     public function onAdminNavbarMenu(MenuEvent $event): void
@@ -67,7 +68,7 @@ final class AuthMenuSubscriber
             'Open tunnel' => $this->tunnel?->url(),
             'Open live site' => $this->productionUrlBase,
         ] as $label => $url) {
-            if (!$url || ($currentHost !== null && strcasecmp((string) parse_url($url, PHP_URL_HOST), $currentHost) === 0)) {
+            if (!$url || (null !== $currentHost && 0 === strcasecmp((string) parse_url($url, PHP_URL_HOST), $currentHost))) {
                 continue;
             }
 

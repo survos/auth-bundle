@@ -1,5 +1,6 @@
 <?php
 
+declare(strict_types=1);
 
 namespace Survos\AuthBundle\Event;
 
@@ -16,7 +17,6 @@ class UserCreatedEvent extends Event
     {
         return $this->extra;
     }
-
 
     public function getUser(): UserInterface
     {

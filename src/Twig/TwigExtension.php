@@ -1,11 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Survos\AuthBundle\Twig;
 
 use Auth;
 use Twig\Extension\AbstractExtension;
-
-use Twig\TwigFunction;
 
 class TwigExtension extends AbstractExtension
 {

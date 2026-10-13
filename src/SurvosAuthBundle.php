@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Survos\AuthBundle;
 
 use Survos\AuthBundle\Command\UserCreateCommand;
@@ -8,17 +10,18 @@ use Survos\AuthBundle\Controller\OAuthController;
 use Survos\AuthBundle\Controller\ProfileController;
 use Survos\AuthBundle\Controller\RegisterController;
 use Survos\AuthBundle\Security\Authenticator;
+use Survos\AuthBundle\Security\DevAutoLoginAuthenticator;
 use Survos\AuthBundle\Service\AuthService;
+use Survos\AuthBundle\Twig\Components\OAuth;
 use Survos\AuthBundle\Twig\TwigExtension;
+use Survos\Kit\AbstractSurvosBundle;
+use Survos\Kit\Traits\HasConfigurableRoutes;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\DependencyInjection\Reference;
-use Survos\Kit\AbstractSurvosBundle;
-use Survos\AuthBundle\Twig\Components\OAuth;
-use Survos\Kit\Traits\HasConfigurableRoutes;
-use Survos\AuthBundle\Security\DevAutoLoginAuthenticator;
+
 // Symfony\Component\HttpKernel\Bundle\Bundle <-- Flex auto-registration marker (see Survos\Kit\AbstractSurvosBundle)
 class SurvosAuthBundle extends AbstractSurvosBundle
 {
@@ -26,9 +29,6 @@ class SurvosAuthBundle extends AbstractSurvosBundle
 
     protected string $extensionAlias = 'survos_auth';
 
-    /**
-     * @param array<mixed> $config
-     */
     public function build(ContainerBuilder $container): void
     {
         parent::build($container);
@@ -61,7 +61,7 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         $builder->autowire(DevAutoLoginAuthenticator::class)
             ->setArgument('$userIdentifier', $devAutoLogin)
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$enabled', $devAutoLogin !== '' && $builder->getParameter('kernel.debug'))
+            ->setArgument('$enabled', '' !== $devAutoLogin && $builder->getParameter('kernel.debug'))
             ->setPublic(false);
 
         $serviceId = 'survos_auth.base_service';
@@ -80,16 +80,16 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         // the social media login buttons
         foreach ([
             OAuth::class,
-            \Survos\AuthBundle\Twig\Components\Login::class,
-            \Survos\AuthBundle\Twig\Components\Register::class,
-            \Survos\AuthBundle\Twig\Components\Profile::class,
+            Twig\Components\Login::class,
+            Twig\Components\Register::class,
+            Twig\Components\Profile::class,
         ] as $componentClass) {
             $builder->register($componentClass)
                 ->setAutowired(true)
                 ->setAutoconfigured(true);
         }
 
-        $builder->autowire(\Survos\AuthBundle\Service\OAuthUserResolver::class)
+        $builder->autowire(Service\OAuthUserResolver::class)
             ->setArgument('$userClass', $config['user_class']);
 
         $definition = $builder->autowire(Authenticator::class)
@@ -99,14 +99,12 @@ class SurvosAuthBundle extends AbstractSurvosBundle
             ->setArgument('$router', new Reference('router'))
             ->setArgument('$newUserRedirectRoute', $config['new_user_redirect_route'])
             ->setArgument('$loginRoute', $config['login_route'])
-            ;
-
-
+        ;
 
         // SurvosTabler is optional; only wire the admin-navbar menu when it's installed.
         if (class_exists(\Survos\TablerBundle\Event\MenuEvent::class)) {
             $container->services()
-                ->set(\Survos\AuthBundle\Menu\AuthMenuSubscriber::class)
+                ->set(Menu\AuthMenuSubscriber::class)
                 ->arg('$tunnel', new Reference(\Survos\CloudflaredBundle\Service\Tunnel::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
                 ->arg('$productionUrlBase', $config['production_url_base'])
                 ->autowire()
@@ -143,11 +141,8 @@ class SurvosAuthBundle extends AbstractSurvosBundle
                 ->setAutowired(true)
                 ->setAutoconfigured(true)
                 ->setPublic(true)
-                ;
+            ;
         }
-
-
-
     }
 
     public function configure(DefinitionConfigurator $definition): void
@@ -173,7 +168,7 @@ class SurvosAuthBundle extends AbstractSurvosBundle
             ->scalarNode('new_user_redirect_route')->defaultValue('oauth_profile')->end()
             ->scalarNode('production_url_base')->defaultNull()->end()
             ->scalarNode('user_provider')->defaultValue(null)->end()
-            ->scalarNode('user_class')->defaultValue("App\\Entity\\User")->end()
+            ->scalarNode('user_class')->defaultValue('App\\Entity\\User')->end()
             ->scalarNode('dev_auto_login')
                 ->defaultNull()
                 ->info('User identifier (usually an email) to auto-authenticate as. Registers DevAutoLoginAuthenticator, which must then be listed in a when@dev firewall\'s custom_authenticators. Ignored entirely outside debug mode — there is no production code path. Point it at an env var so it can be switched off without editing security.yaml.')
@@ -201,7 +196,7 @@ class SurvosAuthBundle extends AbstractSurvosBundle
                 }
             }
 
-            if ($providers !== []) {
+            if ([] !== $providers) {
                 $clients = [];
                 foreach ($providers as $provider => $providerConfig) {
                     if (!array_key_exists('client_id', $providerConfig) || !array_key_exists('client_secret', $providerConfig)) {
@@ -219,10 +214,9 @@ class SurvosAuthBundle extends AbstractSurvosBundle
                     if (array_key_exists('use_state', $providerConfig) && null !== $providerConfig['use_state']) {
                         $clients[$provider]['use_state'] = (bool) $providerConfig['use_state'];
                     }
-
                 }
 
-                if ($clients !== []) {
+                if ([] !== $clients) {
                     $builder->prependExtensionConfig('knpu_oauth2_client', [
                         'clients' => $clients,
                     ]);

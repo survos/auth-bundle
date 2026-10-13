@@ -31,7 +31,8 @@ final class ProfileController
         private CsrfTokenManagerInterface $csrf,
         private RouterInterface $router,
         private ClientRegistry $clients,
-    ) {}
+    ) {
+    }
 
     #[Route('/account', name: 'auth_profile', methods: ['GET', 'POST'])]
     public function __invoke(Request $request): Response
@@ -45,7 +46,7 @@ final class ProfileController
                 throw new AccessDeniedException('Invalid password request.');
             }
             $password = $request->request->getString('password');
-            if ($user->getPassword() !== null && !$this->passwordHasher->isPasswordValid($user, $request->request->getString('currentPassword'))) {
+            if (null !== $user->getPassword() && !$this->passwordHasher->isPasswordValid($user, $request->request->getString('currentPassword'))) {
                 $error = 'The current password is incorrect.';
             } elseif (mb_strlen($password) < 12 || strlen($password) > 4096) {
                 $error = 'Use a password of at least 12 characters (at most 4096 bytes).';
@@ -55,12 +56,14 @@ final class ProfileController
                 $this->entityManager->getClassMetadata($user::class)->setFieldValue($user, 'password', $this->passwordHasher->hashPassword($user, $password));
                 $this->entityManager->flush();
                 $request->getSession()->getFlashBag()->add('success', 'Password saved. You can now sign in with email and password too.');
+
                 return new RedirectResponse($this->router->generate('auth_profile'), Response::HTTP_SEE_OTHER);
             }
         }
+
         return new Response($this->twig->render('@SurvosAuth/profile.html.twig', [
             'supportsPassword' => $supportsPassword, 'error' => $error,
             'clientKeys' => $this->clients->getEnabledClientKeys(),
-        ]), $error === null ? Response::HTTP_OK : Response::HTTP_UNPROCESSABLE_ENTITY);
+        ]), null === $error ? Response::HTTP_OK : Response::HTTP_UNPROCESSABLE_ENTITY);
     }
 }

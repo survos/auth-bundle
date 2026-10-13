@@ -31,7 +31,8 @@ final class OAuthController
         private TokenStorageInterface $tokenStorage,
         private CsrfTokenManagerInterface $csrf,
         #[Autowire('%kernel.project_dir%')] private string $projectDir,
-    ) {}
+    ) {
+    }
 
     #[Route('/profile', name: 'oauth_profile', methods: ['GET'])]
     public function profile(): Response
@@ -45,15 +46,18 @@ final class OAuthController
         $providers = $this->baseService->getCombinedOauthData();
         $provider = $providers[$providerKey] ?? throw new NotFoundHttpException('Unknown OAuth provider.');
         $details = $this->baseService->getOauthClients()[$providerKey] ?? null;
-        $lock = $this->projectDir . '/composer.lock';
+        $lock = $this->projectDir.'/composer.lock';
         $packages = is_file($lock) ? json_decode(file_get_contents($lock), true, flags: JSON_THROW_ON_ERROR)['packages'] : [];
         $package = null;
         foreach ($packages as $candidate) {
-            if ($candidate['name'] === $provider['library']) $package = (object) $candidate;
+            if ($candidate['name'] === $provider['library']) {
+                $package = (object) $candidate;
+            }
         }
         if ($details['provider']['app_url'] ?? false) {
             $details['provider']['app_url'] = sprintf($details['provider']['app_url'], $details['appId']);
         }
+
         return new Response($this->twig->render('@SurvosAuth/oauth/provider.html.twig', [
             'provider' => $provider, 'providers' => $providers, 'providerKey' => $providerKey,
             'urls' => $details['provider'] ?? [], 'package' => $package,
@@ -66,6 +70,7 @@ final class OAuthController
     public function providers(): Response
     {
         $providers = $this->baseService->getCombinedOauthData();
+
         return new Response($this->twig->render('@SurvosAuth/oauth/providers.html.twig', ['providers' => $providers, 'clients' => $providers]));
     }
 
@@ -73,6 +78,7 @@ final class OAuthController
     public function connectAction(Request $request, string $clientKey): Response
     {
         $request->getSession()->remove(Authenticator::LINK_SESSION);
+
         return $this->begin($clientKey);
     }
 
@@ -81,7 +87,7 @@ final class OAuthController
     public function link(Request $request, string $clientKey): Response
     {
         $user = $this->tokenStorage->getToken()?->getUser();
-        if ($user === null || !$this->csrf->isTokenValid(new CsrfToken('oauth_link_' . $clientKey, $request->request->getString('_token')))) {
+        if (null === $user || !$this->csrf->isTokenValid(new CsrfToken('oauth_link_'.$clientKey, $request->request->getString('_token')))) {
             throw new AccessDeniedException('Invalid account connection request.');
         }
         $response = $this->begin($clientKey);
@@ -89,6 +95,7 @@ final class OAuthController
             'provider' => $clientKey, 'user' => $user->getUserIdentifier(), 'expires' => time() + 600,
             'state' => $this->clientRegistry->getClient($clientKey)->getOAuth2Provider()->getState(),
         ]);
+
         return $response;
     }
 
@@ -104,6 +111,7 @@ final class OAuthController
             throw new NotFoundHttpException('This OAuth provider is not configured.');
         }
         $scopes = $this->baseService->getProviderScopes($clientKey);
+
         return $this->clientRegistry->getClient($clientKey)->redirect($scopes);
     }
 }

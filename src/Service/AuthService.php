@@ -1,16 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Survos\AuthBundle\Service;
 
 use KnpU\OAuth2ClientBundle\Client\ClientRegistry;
 use KnpU\OAuth2ClientBundle\DependencyInjection\ProviderFactory;
-use Psr\Log\LoggerInterface;
-use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\Yaml\Yaml;
-use Symfony\Component\Security\Core\User\UserInterface;
 use League\OAuth2\Client\Provider\ResourceOwnerInterface;
-use Survos\AuthBundle\Traits\OAuthIdentifiersInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Yaml\Yaml;
 
 class AuthService
 {
@@ -18,10 +19,10 @@ class AuthService
         private string $userClass,
         private array $config,
         private ClientRegistry $clientRegistry,
-        private ?LoggerInterface $logger=null,
+        private ?LoggerInterface $logger = null,
         private ?RequestStack $requestStack = null,
         private ?OAuthUserResolver $userResolver = null,
-        private ?\Survos\AuthBundle\Security\Authenticator $authenticator = null
+        private ?\Survos\AuthBundle\Security\Authenticator $authenticator = null,
 
         //        private ProviderFactory $provider
     ) {
@@ -32,7 +33,7 @@ class AuthService
 
     public function allowLogin(): bool
     {
-        return $this->config['allow_login'] !== 'none';
+        return 'none' !== $this->config['allow_login'];
     }
 
     public function getUserClass(): string
@@ -48,18 +49,17 @@ class AuthService
     public function getProviderUser(string $clientKey, string $accessToken)
     {
         if (!$client = $this->clientRegistry->getClient($clientKey)) {
-            $this->logger->error("bad client " . $clientKey);
+            $this->logger->error('bad client '.$clientKey);
         }
-        assert($client, "bad client " . $clientKey);
+        assert($client, 'bad client '.$clientKey);
 
         // from session?
         $accessToken = $client->getAccessToken();
         $user = $client->fetchUserFromToken($accessToken);
+
         return $user;
 
-//        $user = $this->userProvider->loadUserByIdentifier($email);
-
-
+        //        $user = $this->userProvider->loadUserByIdentifier($email);
     }
 
     // hack to get client id
@@ -69,6 +69,7 @@ class AuthService
         // dump($obj, $prop);
         try {
             $property = $reflection->getProperty($prop);
+
             return $property->getValue($obj);
         } catch (\Exception $e) {
             // log the error?
@@ -91,15 +92,16 @@ class AuthService
             $provider = $client->getOAuth2Provider();
             $clientId = $this->accessProtected($client->getOAuth2Provider(), 'clientId');
             try {
-            $type = $this->accessProtected($client->getOAuth2Provider(), 'type');
-            if (!$type) {
-                $this->logger->error($msg = "Missing property 'type' in $key " );
-//                dd($msg, $provider, $client->getOAuth2Provider());
-            }
+                $type = $this->accessProtected($client->getOAuth2Provider(), 'type');
+                if (!$type) {
+                    $this->logger->error($msg = "Missing property 'type' in $key ");
+                    //                dd($msg, $provider, $client->getOAuth2Provider());
+                }
             } catch (\Exception $e) {
                 $client = false;
                 $provider = false;
             }
+
             // $extra = $this->accessProtected($provider, 'extrias');
             return [
                 'key' => $key,
@@ -139,7 +141,7 @@ class AuthService
     // the hand-curated list of URLs.  Written by hand
     protected static function getOAuthProviderUrlPath(): string
     {
-        return __DIR__ . '/../../data/oauth_provider_urls.yaml';
+        return __DIR__.'/../../data/oauth_provider_urls.yaml';
     }
 
     // the data from KNPU's list of providers plus the urls to link to for configurating.
@@ -148,7 +150,7 @@ class AuthService
     // when read by AuthService->authProviderConfigurationData.  Does include project-specific data (needs ClientRegistry)
     protected static function getOAuthProviderCombinedPath(): string
     {
-        return __DIR__ . '/../../data/oauth_provider.yaml';
+        return __DIR__.'/../../data/oauth_provider.yaml';
     }
 
     public function writeCombinedOauthData($data)
@@ -199,7 +201,7 @@ class AuthService
             if (preg_match_all('/env\(([^\)]+)\)/', $comments, $m)) {
                 $provider['env_vars'] = $m[1];
             } else {
-                assert(false, "Bad match: " . $comments);
+                assert(false, 'Bad match: '.$comments);
             }
 
             $classToTypeMap[$provider['class']] = $provider['type'];
@@ -230,7 +232,7 @@ class AuthService
             $providerClass = get_class($clientProvider);
 
             $type = $classToTypeMap[$class];
-            if (! key_exists($type, $providers)) {
+            if (!key_exists($type, $providers)) {
                 throw new \Exception("Missing $type ($class) in providers");
             }
             // throw new \Exception($class, $client, $clientProvider, $type, $providerClass);

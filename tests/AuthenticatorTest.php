@@ -26,9 +26,10 @@ final class AuthenticatorTest extends TestCase
 {
     private function request(string $query = ''): Request
     {
-        $request = Request::create('/auth/connect/controller/google' . $query);
+        $request = Request::create('/auth/connect/controller/google'.$query);
         $request->attributes->add(['_route' => 'oauth_connect_check', 'clientKey' => 'google']);
         $request->setSession(new Session(new MockArraySessionStorage()));
+
         return $request;
     }
 
