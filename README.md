@@ -123,6 +123,42 @@ approval remain the host application's responsibility. Configure `login_route` (
 `app_login`) and `new_user_redirect_route` for the host app. The callback must be handled
 by `Survos\AuthBundle\Security\Authenticator` on the firewall.
 
+## Single sign-on with Symfony's `oidc_login`
+
+Symfony 8.2's `oidc_login` authenticator (against our authentik, auth.survos.com) calls the
+firewall's user provider with the OIDC subject as identifier and every claim as attributes.
+`OidcUserResolver` turns those claims into an app user: the subject goes into `identifiers`
+like any provider's, and an account that predates SSO is linked by email the first time,
+but only when the provider says `email_verified: true` (our authentik vouches for its
+addresses; never trust that claim from an IdP you do not run).
+
+```php
+final class UserProvider implements AttributesBasedUserProviderInterface
+{
+    public function __construct(private EntityManagerInterface $em, private OidcUserResolver $oidcUserResolver) {}
+
+    public function loadUserByIdentifier(string $identifier, array $attributes = []): UserInterface
+    {
+        return OidcUserResolver::isOidcLogin($attributes)
+            ? $this->oidcUserResolver->resolve('authentik', $attributes)
+            : $this->em->getRepository(User::class)->findOneBy(['email' => $identifier]) ?? throw new UserNotFoundException();
+    }
+}
+```
+
+```yaml
+# security.yaml, main firewall; routes come from the `security.route_loader` import
+oidc_login:
+    provider_uri: '%env(OIDC_PROVIDER_URI)%'   # https://auth.survos.com/application/o/<app>/
+    client_id: '%env(OIDC_CLIENT_ID)%'
+    client_authentication:
+        client_secret_basic: '%env(OIDC_CLIENT_SECRET)%'
+    scope: [openid, email, profile]
+```
+
+The subject differs per authentik instance, so a user linked against a local authentik will
+not log in against auth.survos.com until that `identifiers` entry is removed.
+
 Bundle regression tests from the monorepo:
 
 ```bash

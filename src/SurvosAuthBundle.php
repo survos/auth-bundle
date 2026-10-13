@@ -91,6 +91,8 @@ class SurvosAuthBundle extends AbstractSurvosBundle
 
         $builder->autowire(Service\OAuthUserResolver::class)
             ->setArgument('$userClass', $config['user_class']);
+        $builder->autowire(Service\OidcUserResolver::class)
+            ->setArgument('$userClass', $config['user_class']);
 
         $definition = $builder->autowire(Authenticator::class)
             ->setAutowired(true)
