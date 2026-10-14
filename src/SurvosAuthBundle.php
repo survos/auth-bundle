@@ -104,7 +104,7 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         ;
 
         // SurvosTabler is optional; only wire the admin-navbar menu when it's installed.
-        if (class_exists(\Survos\TablerBundle\Event\MenuEvent::class)) {
+        if (trait_exists(\Survos\TablerBundle\Menu\MenuBuilderTrait::class)) {
             $container->services()
                 ->set(Menu\AuthMenuSubscriber::class)
                 ->arg('$tunnel', new Reference(\Survos\CloudflaredBundle\Service\Tunnel::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))

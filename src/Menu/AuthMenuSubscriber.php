@@ -6,11 +6,12 @@ namespace Survos\AuthBundle\Menu;
 
 use Survos\AuthBundle\Service\AuthService;
 use Survos\CloudflaredBundle\Service\Tunnel;
-use Survos\TablerBundle\Event\MenuEvent;
+use Survos\MenuBundle\Attribute\AsMenuListener;
+use Survos\MenuBundle\Event\MenuEvent;
+use Survos\MenuBundle\MenuSlot;
 use Survos\TablerBundle\Menu\MenuBuilderTrait;
 use Survos\TablerBundle\Service\IconService;
 use Survos\TablerBundle\Service\RouteAliasService;
-use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Routing\RouterInterface;
 
@@ -19,7 +20,7 @@ use Symfony\Component\Routing\RouterInterface;
  * profile) to the admin navbar.
  *
  * SurvosTabler is an OPTIONAL dependency of this bundle, so this subscriber is
- * only registered when tabler's MenuEvent is present (see SurvosAuthBundle::
+ * only registered when tabler's MenuBuilderTrait is present (see SurvosAuthBundle::
  * loadExtension). Each link self-removes when its route is absent, so the
  * submenu only shows what the app actually exposes.
  */
@@ -38,7 +39,7 @@ final class AuthMenuSubscriber
     ) {
     }
 
-    #[AsEventListener(event: MenuEvent::ADMIN_NAVBAR_MENU)]
+    #[AsMenuListener(MenuSlot::ADMIN_NAVBAR_MENU)]
     public function onAdminNavbarMenu(MenuEvent $event): void
     {
         $submenu = $this->addSubmenu($event->getMenu(), 'Auth', icon: 'auth');
