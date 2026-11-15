@@ -28,7 +28,7 @@
     },
     "require-dev": {
         "phpstan/phpstan": "^2.0",
-        "doctrine/doctrine-bundle": "^3.0",
+        "doctrine/doctrine-bundle": "^3.4",
         "stevenmaguire/oauth2-dropbox": "^3.1"
     },
     "autoload": {
