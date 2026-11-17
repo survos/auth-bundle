@@ -42,5 +42,9 @@
         }
     },
     "config": {},
-    "prefer-stable": true
+    "prefer-stable": true,
+    "suggest": {
+        "web-token/jwt-library": "^4.0, required when enabling resources",
+        "symfony/http-client": "Required for resource issuer discovery"
+    }
 }

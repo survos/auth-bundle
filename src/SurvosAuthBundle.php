@@ -77,6 +77,10 @@ class SurvosAuthBundle extends AbstractSurvosBundle
             ->setPublic(true)
         ;
 
+        if ([] !== $config['resources']) {
+            $builder->register(Security\ResourceUserProvider::class);
+        }
+
         // the social media login buttons
         foreach ([
             OAuth::class,
@@ -152,6 +156,17 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         $children = $definition->rootNode()->children();
         $this->addRouteOptions($children, '/auth');
         $children
+            ->arrayNode('authorities')->useAttributeAsKey('name')->arrayPrototype()->children()
+                ->stringNode('issuer')->isRequired()->cannotBeEmpty()->end()
+            ->end()->end()->end()
+            ->arrayNode('resources')->useAttributeAsKey('name')->arrayPrototype()->children()
+                ->booleanNode('enabled')->defaultTrue()->end()
+                ->stringNode('authority')->isRequired()->cannotBeEmpty()->end()
+                ->stringNode('path')->isRequired()->cannotBeEmpty()->end()
+                ->stringNode('resource')->isRequired()->cannotBeEmpty()->end()
+                ->arrayNode('audiences')->isRequired()->requiresAtLeastOneElement()->stringPrototype()->cannotBeEmpty()->end()->end()
+                ->arrayNode('required_scopes')->isRequired()->requiresAtLeastOneElement()->stringPrototype()->cannotBeEmpty()->end()->end()
+            ->end()->end()->end()
             ->arrayNode('providers')
                 ->useAttributeAsKey('name')
                 ->arrayPrototype()
@@ -178,10 +193,82 @@ class SurvosAuthBundle extends AbstractSurvosBundle
         ->end();
     }
 
+    /** Project opt-in resource configuration onto Symfony's native security implementation. */
+    private function prependResourceSecurity(ContainerBuilder $builder): void
+    {
+        $extension = $this->getContainerExtension();
+        $config = (new \Symfony\Component\Config\Definition\Processor())->processConfiguration(
+            $extension->getConfiguration([], $builder),
+            $builder->getExtensionConfig($this->extensionAlias),
+        );
+        if ([] === $config['resources']) {
+            return;
+        }
+        $resources = array_filter($config['resources'], static fn (array $resource): bool => $resource['enabled']);
+        if ([] === $resources) {
+            return;
+        }
+        if (!class_exists(\Symfony\Component\Security\Http\Authorization\OAuth2ScopeVoter::class)
+            || !class_exists(\Jose\Component\Core\AlgorithmManager::class)) {
+            throw new \LogicException('survos_auth.resources requires Symfony Security 8.2+ and web-token/jwt-library ^4. Install these before enabling resource authentication.');
+        }
+
+        $security = ['providers' => ['survos_resource' => ['id' => Security\ResourceUserProvider::class]], 'firewalls' => [], 'access_control' => []];
+        foreach ($resources as $name => $resource) {
+            if (!isset($config['authorities'][$resource['authority']])) {
+                throw new \InvalidArgumentException(sprintf('Unknown authority "%s" for resource "%s".', $resource['authority'], $name));
+            }
+            // Trust boundaries and routes are resolved at compile time, never from request headers.
+            $issuer = $builder->resolveEnvPlaceholders($config['authorities'][$resource['authority']]['issuer'], true);
+            $uri = $builder->resolveEnvPlaceholders($resource['resource'], true);
+            foreach ([$issuer, $uri] as $url) {
+                $parts = parse_url($url);
+                if (false === $parts || 'https' !== ($parts['scheme'] ?? null) || empty($parts['host'])
+                    || isset($parts['user']) || isset($parts['query']) || isset($parts['fragment'])) {
+                    throw new \InvalidArgumentException('Auth issuer and resource must be absolute HTTPS URLs without credentials, query or fragment.');
+                }
+            }
+            $path = $resource['path'];
+            if (!str_starts_with($path, '/') || $path !== parse_url($uri, PHP_URL_PATH)) {
+                throw new \InvalidArgumentException('A protected resource path must match the path of its canonical resource URL.');
+            }
+            foreach ($resource['required_scopes'] as $scope) {
+                if (!preg_match('/^[\x21\x23-\x27\x2A-\x5B\x5D-\x7E]+$/D', $scope)) {
+                    throw new \InvalidArgumentException('Scopes must be individual OAuth scope tokens without parentheses.');
+                }
+            }
+            $security['firewalls'][$name] = [
+                'pattern' => '^'.preg_quote($path, '#').'$',
+                'stateless' => true,
+                'provider' => 'survos_resource',
+                'access_token' => [
+                    'token_extractors' => ['header'],
+                    'token_handler' => ['oidc' => [
+                        'issuers' => [$issuer],
+                        'audience' => $resource['audiences'],
+                        'algorithms' => ['RS256'],
+                        'enforce_at_jwt_type' => true,
+                        'discovery' => ['base_uri' => [rtrim($issuer, '/').'/'], 'check_issuer' => [rtrim($issuer, '/').'/' => $issuer]],
+                    ]],
+                    'resource_metadata' => [
+                        'resource' => $uri,
+                        'authorization_servers' => [$issuer],
+                        'scopes_supported' => $resource['required_scopes'],
+                    ],
+                ],
+            ];
+            $security['access_control'][] = ['path' => '^'.preg_quote('/.well-known/oauth-protected-resource'.$path, '#').'$', 'roles' => 'PUBLIC_ACCESS'];
+            $security['access_control'][] = ['path' => '^'.preg_quote($path, '#').'$', 'roles' => 'OAUTH2_SCOPE('.implode(' ', $resource['required_scopes']).')'];
+        }
+        $builder->prependExtensionConfig('security', $security);
+    }
+
     // (removed duplicate loadExtension; logic is in the main method above)
 
     public function prependExtension(ContainerConfigurator $container, ContainerBuilder $builder): void
     {
+        $this->prependResourceSecurity($builder);
+
         if ($builder->hasExtension('knpu_oauth2_client')) {
             $providers = [];
             foreach ($builder->getExtensionConfig($this->extensionAlias) as $config) {
