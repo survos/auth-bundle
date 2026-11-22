@@ -39,6 +39,11 @@
     "extra": {
         "branch-alias": {
             "dev-master": "2.1-dev"
+        },
+        "ai-mate": {
+            "skills": [
+                "skills"
+            ]
         }
     },
     "config": {},
